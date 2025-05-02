@@ -1,0 +1,7 @@
+{
+  "name": "Piano Notes",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "custom"
+}
