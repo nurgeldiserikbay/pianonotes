@@ -32,7 +32,7 @@ const MS_MIN = 60 * 10
 const MS_SEC = 10
 const LIFE = 10
 const SPEED = 1
-const ACCELERATION = Math.floor(window.innerWidth * 0.0002 * 100) / 100
+const ACCELERATION = Math.floor(window.innerWidth * 0.0004 * 100) / 100
 
 const COLORS: string[] = ['#ff7675', '#fdcb6e', '#74b9ff', '#a29bfe', '#00cec9']
 

@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "deploy": "gh-pages -d docs --remote origin --branch main",
+    "deploy": "yarn build:prod && gh-pages -d docs --remote origin --branch main",
     "dev": "vite --mode development",
     "dev:prod": "vite --mode production",
     "build": "vite build --mode development",
