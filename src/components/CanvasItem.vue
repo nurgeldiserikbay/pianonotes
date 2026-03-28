@@ -17,22 +17,26 @@ import { KEYS } from '@/consts/keys'
 import { useAdsStore } from '@/store/adsStore'
 
 import { Particle } from './game'
+import { gameBalanceConfig, computeTravelTime, computeSpeed, computeDifficultyProgress } from '@/config/gameBalance'
+import { themeConfig } from '@/config/themeConfig'
+import { getAnimationProgress, easeOut, getShakeOffset } from '@/utils/animations'
+import { getTodayChallenge, getChallengeProgress, updateChallengeProgress, isChallengeCompleted } from '@/utils/dailyChallenge'
 
-const LINES_COLORS = ['#02D5FF', '#C84BFF', '#0BFFDD', '#C3FF18', '#13CAFF']
+const LINES_COLORS = themeConfig.lines.colors
 
 const $props = defineProps<{
 	activeKeys?: IKeyCode[]
 }>()
 
-const $emits = defineEmits(['wrong'])
+const $emits = defineEmits<{
+	wrong: [noteName: string]
+}>()
 
 const scale = window.devicePixelRatio
 const MS_HOUR = 60 * 60 * 10
 const MS_MIN = 60 * 10
 const MS_SEC = 10
-const LIFE = 10
-const SPEED = 1
-const ACCELERATION = Math.floor(window.innerWidth * 0.0004 * 100) / 100
+const LIFE = gameBalanceConfig.life
 
 const COLORS: string[] = ['#ff7675', '#fdcb6e', '#74b9ff', '#a29bfe', '#00cec9']
 
@@ -57,11 +61,41 @@ const notePos = ref<{ [key: string]: number }>({})
 const started = ref(false)
 const time = ref(0)
 const life = ref(LIFE)
-const speed = ref(SPEED)
+const speed = ref(0) // Скорость в px/sec (вычисляется через travelTime)
 let notes: INote[] = []
 let particles: Particle[] = []
 const animId = ref<ReturnType<typeof requestAnimationFrame>>()
 const path = ref(0)
+
+// Новая система скорости и сложности
+const travelTimeSec = ref(gameBalanceConfig.travelTime.phase1)
+const score = ref(0)
+const combo = ref(0)
+const perfectCount = ref(0)
+const maxCombo = ref(0)
+const highScore = ref(0)
+const nearMissMessage = ref('')
+const comboText = ref('')
+const comboTextTimeout = ref<ReturnType<typeof setTimeout>>()
+
+// Загружаем рекорд из localStorage
+try {
+	const stored = localStorage.getItem('pianoNotes_highScore')
+	if (stored) {
+		highScore.value = parseInt(stored, 10) || 0
+	}
+} catch (e) {
+	// Игнорируем ошибки
+}
+
+// DeltaTime для корректного движения
+let lastFrameTime = 0
+let gameStartTime = 0
+
+// Slow motion эффект
+const slowMotionActive = ref(false)
+const slowMotionEndTime = ref(0)
+
 const noteImg = useTemplateRef('noteImg')
 const noteFlatImg = useTemplateRef('noteFlatImg')
 const noteSharpImg = useTemplateRef('noteSharpImg')
@@ -92,24 +126,47 @@ const firstUnactiveNote = computed(() => {
 	return notes[0]
 })
 
-watch(
-	() => time.value,
-	(newVal) => {
-		if (newVal % 100 === 0) speed.value += ACCELERATION
+// Вычисляем скорость на основе travelTime и размеров экрана
+function updateSpeed() {
+	if (width.value <= 0) return
+	
+	// Дистанция для движения ноты (от правого края до левого)
+	const trackLength = width.value
+	
+	// Вычисляем travelTime на основе прогресса
+	const progress = computeDifficultyProgress(
+		score.value,
+		time.value / 10, // time в 1/10 секундах
+		gameBalanceConfig
+	)
+	travelTimeSec.value = computeTravelTime(progress, gameBalanceConfig)
+	
+	// Вычисляем скорость: speed = distance / time
+	speed.value = computeSpeed(trackLength, travelTimeSec.value, true, gameBalanceConfig)
+	
+	// Применяем slow motion если активен
+	if (slowMotionActive.value) {
+		speed.value *= gameBalanceConfig.combo.slowMotionFactor
 	}
-)
+}
+
+// Обновляем скорость при изменении размеров или прогресса
+watch([width, score, time], () => {
+	if (started.value) {
+		updateSpeed()
+	}
+}, { immediate: false })
 
 watch(
 	() => $props.activeKeys,
 	(activeKeys) => {
-		if (!activeKeys?.length) return
+		if (!activeKeys?.length || !started.value) return
 		const note = firstUnactiveNote.value
 		if (!note) return
 		const isActive = activeKeys.some((n) => n.note.includes(note.name))
 
 		if (isActive) {
-			explode(note)
-			notes = notes.filter((note2) => note2 !== note)
+			handleNoteHit(note)
 		}
 	},
 	{
@@ -141,9 +198,78 @@ function explode(note: INote) {
 	}
 }
 
+// Обработка попадания по ноте (новая логика с perfect/combo)
+function handleNoteHit(note: INote) {
+	if (!ctx.value) return
+	
+	// Вычисляем расстояние до целевой линии для perfect
+	// Целевая линия находится примерно на позиции 50px от левого края (где линии нотного стана)
+	const targetLineX = 50 + getNoteImgSize.value.width / 2
+	const distance = Math.abs(note.x - targetLineX)
+	const isPerfect = distance <= gameBalanceConfig.combo.perfectThreshold
+	
+	// Обновляем комбо
+	if (isPerfect) {
+		perfectCount.value++
+		combo.value++
+		if (combo.value > maxCombo.value) {
+			maxCombo.value = combo.value
+		}
+		
+		// Анимация perfect
+		note.animation = {
+			type: 'perfect',
+			startTime: performance.now(),
+			duration: themeConfig.animations.perfect.duration,
+			progress: 0,
+		}
+		note.isPerfect = true
+		
+		// Slow motion при комбо x5
+		if (combo.value === gameBalanceConfig.combo.multipliers.x5) {
+			slowMotionActive.value = true
+			slowMotionEndTime.value = performance.now() + gameBalanceConfig.combo.slowMotionDuration * 1000
+		}
+		
+		// Комбо текст
+		if (combo.value >= 2) {
+			showComboText(combo.value)
+		}
+		
+		// Очки за perfect
+		const baseScore = gameBalanceConfig.rewards.perfect
+		const comboMultiplier = combo.value >= 2 ? combo.value * gameBalanceConfig.rewards.comboMultiplier : 1
+		score.value += Math.floor(baseScore * comboMultiplier)
+	} else {
+		// Обычное попадание
+		combo.value = 0
+		score.value += gameBalanceConfig.rewards.normal
+	}
+	
+	explode(note)
+	notes = notes.filter((note2) => note2 !== note)
+	
+	// Обновляем скорость после изменения прогресса
+	updateSpeed()
+}
+
+// Показать текст комбо
+function showComboText(comboValue: number) {
+	comboText.value = `COMBO x${comboValue}!`
+	if (comboTextTimeout.value) {
+		clearTimeout(comboTextTimeout.value)
+	}
+	comboTextTimeout.value = setTimeout(() => {
+		comboText.value = ''
+	}, 1000)
+}
+
 function resize() {
 	init()
 	drawInit()
+	if (started.value) {
+		updateSpeed()
+	}
 }
 
 function onload() {
@@ -224,10 +350,9 @@ function drawLines() {
 		if (!ctx.value) return
 		ctx.value.save()
 		ctx.value.beginPath()
-		ctx.value.strokeStyle = LINES_COLORS[pInt]
-		// ctx.value.shadowColor = LINES_COLORS[pInt]
-		// ctx.value.shadowBlur = 10
-		ctx.value.lineWidth = 4
+		ctx.value.strokeStyle = LINES_COLORS[pInt] || themeConfig.lines.colors[pInt] || '#4a90e2'
+		ctx.value.globalAlpha = themeConfig.lines.opacity
+		ctx.value.lineWidth = themeConfig.lines.width
 		ctx.value.moveTo(0, p + 4)
 		ctx.value.lineTo(width.value, p + 4)
 		ctx.value.stroke()
@@ -273,8 +398,18 @@ async function start() {
 	started.value = true
 	time.value = 0
 	life.value = LIFE
-	speed.value = SPEED
+	score.value = 0
+	combo.value = 0
+	perfectCount.value = 0
+	maxCombo.value = 0
+	nearMissMessage.value = ''
+	comboText.value = ''
+	slowMotionActive.value = false
 	notes = []
+	travelTimeSec.value = gameBalanceConfig.travelTime.phase1
+	gameStartTime = performance.now()
+	lastFrameTime = gameStartTime
+	updateSpeed()
 	addNote()
 	animId.value = requestAnimationFrame(animate)
 	setTimer()
@@ -289,32 +424,119 @@ function setTimer() {
 function addNote() {
 	const name = NOTES[Math.floor(Math.random() * NOTES.length)]
 	const color = colors.value[name]
+	const now = performance.now()
 
+	// Добавляем spawn анимацию
 	notes.push({
 		name: name,
 		x: width.value,
 		color: color,
+		animation: {
+			type: 'spawn',
+			startTime: now,
+			duration: themeConfig.animations.spawn.duration,
+			progress: 0,
+		},
+		scale: themeConfig.animations.spawn.scaleStart,
+		alpha: themeConfig.animations.spawn.fadeStart,
 	})
 
-	path.value = (width.value * 0.88) / 4
+	path.value = (width.value * gameBalanceConfig.notes.minDistance) / gameBalanceConfig.notes.spacingFactor
 }
 
-function animate() {
+function animate(currentTime: number) {
+	if (!started.value) return
+	
+	// Вычисляем deltaTime в секундах
+	const deltaTime = lastFrameTime > 0 ? (currentTime - lastFrameTime) / 1000 : 0.016 // ~60fps по умолчанию
+	lastFrameTime = currentTime
+	
+	// Обновляем slow motion
+	if (slowMotionActive.value && currentTime >= slowMotionEndTime.value) {
+		slowMotionActive.value = false
+		updateSpeed()
+	}
+	
+	// Обновляем анимации нот и перемещаем их
+	const effectiveDeltaTime = slowMotionActive.value 
+		? deltaTime * gameBalanceConfig.combo.slowMotionFactor 
+		: deltaTime
+	
+	notes.forEach((note) => {
+		// Движение
+		note.x -= speed.value * effectiveDeltaTime
+		
+		// Обновление анимаций
+		if (note.animation) {
+			note.animation.progress = getAnimationProgress(
+				note.animation.startTime,
+				note.animation.duration,
+				currentTime
+			)
+			
+			if (note.animation.type === 'spawn') {
+				const progress = easeOut(note.animation.progress)
+				note.scale = themeConfig.animations.spawn.scaleStart + 
+					(themeConfig.animations.spawn.scaleEnd - themeConfig.animations.spawn.scaleStart) * progress
+				note.alpha = themeConfig.animations.spawn.fadeStart + 
+					(themeConfig.animations.spawn.fadeEnd - themeConfig.animations.spawn.fadeStart) * progress
+				
+				if (note.animation.progress >= 1) {
+					note.animation = undefined
+					note.scale = 1
+					note.alpha = 1
+				}
+			} else if (note.animation.type === 'perfect') {
+				const anim = themeConfig.animations.perfect
+				if (note.animation.progress < 0.5) {
+					const t = note.animation.progress * 2
+					note.scale = anim.scaleStart + (anim.scalePeak - anim.scaleStart) * easeOut(t)
+				} else {
+					const t = (note.animation.progress - 0.5) * 2
+					note.scale = anim.scalePeak + (anim.scaleEnd - anim.scalePeak) * easeOut(t)
+				}
+				if (note.animation.progress >= 1) {
+					note.animation = undefined
+					note.scale = 1
+				}
+			}
+		}
+	})
+	
 	draw()
-	path.value -= speed.value
+	
+	// Добавление новой ноты
+	path.value -= speed.value * effectiveDeltaTime
 	if (path.value < 0) {
 		addNote()
 	}
+	
+	// Проверка промахов
 	if (notes.length && notes[0].x < border.value) {
+		const missedNote = notes[0]
+		
+		// Fail анимация
+		if (!missedNote.animation || missedNote.animation.type !== 'fail') {
+			missedNote.animation = {
+				type: 'fail',
+				startTime: currentTime,
+				duration: themeConfig.animations.fail.duration,
+				progress: 0,
+			}
+		}
+		
 		life.value -= 1
-		explode(notes[0])
-		$emits('wrong', notes[0].name)
+		explode(missedNote)
+		$emits('wrong', missedNote.name)
+		combo.value = 0
+		
 		if (life.value <= 0) {
 			stop()
 			return
 		}
 		notes.splice(0, 1)
 	}
+	
 	updateParticles()
 	animId.value = requestAnimationFrame(animate)
 }
@@ -327,15 +549,28 @@ function draw() {
 }
 
 function drawNotes() {
+	const currentTime = performance.now()
+	
 	notes.forEach((note) => {
-		let posX = (note.x -= speed.value)
+		let posX = note.x
+		
+		// Применяем shake для fail анимации
+		if (note.animation?.type === 'fail') {
+			const shakeProgress = getAnimationProgress(
+				note.animation.startTime,
+				note.animation.duration,
+				currentTime
+			)
+			posX += getShakeOffset(shakeProgress, themeConfig.animations.fail.shakeAmount)
+		}
+		
 		if (['fa2#', 'sol2&', 'sol2', 'sol2#', 'la2&'].includes(note.name))
-			drawNote(note.name, posX, notePos.value[note.name], true)
-		else drawNote(note.name, posX, notePos.value[note.name])
+			drawNote(note.name, posX, notePos.value[note.name], true, note)
+		else drawNote(note.name, posX, notePos.value[note.name], false, note)
 	})
 }
 
-function drawNote(name: string, x: number, y: number, rotate: boolean = false) {
+function drawNote(name: string, x: number, y: number, rotate: boolean = false, note?: INote) {
 	if (!ctx.value) return
 	let img
 
@@ -352,6 +587,36 @@ function drawNote(name: string, x: number, y: number, rotate: boolean = false) {
 	if (!img) return
 
 	ctx.value.save()
+	
+	// Применяем scale и alpha если есть анимация
+	const scale = note?.scale ?? 1
+	const alpha = note?.alpha ?? 1
+	
+	if (scale !== 1 || alpha !== 1) {
+		const centerX = x + getNoteImgSize.value.width / 2
+		const centerY = rotate 
+			? y - getNoteImgSize.value.height * 0.1 + getNoteImgSize.value.height / 2
+			: y - getNoteImgSize.value.height * 0.8 + getNoteImgSize.value.height / 2
+		
+		ctx.value.translate(centerX, centerY)
+		ctx.value.scale(scale, scale)
+		ctx.value.translate(-centerX, -centerY)
+		ctx.value.globalAlpha = alpha
+	}
+	
+	// Тень для ноты
+	if (!note?.animation || note.animation.type !== 'fail') {
+		ctx.value.shadowColor = themeConfig.notes.shadow.color
+		ctx.value.shadowBlur = themeConfig.notes.shadow.blur
+		ctx.value.shadowOffsetX = themeConfig.notes.shadow.offsetX
+		ctx.value.shadowOffsetY = themeConfig.notes.shadow.offsetY
+	}
+	
+	// Glow для perfect/combo
+	if (note?.isPerfect) {
+		ctx.value.shadowColor = themeConfig.effects.perfect.glow.color
+		ctx.value.shadowBlur = themeConfig.effects.perfect.glow.blur
+	}
 
 	if (rotate) {
 		ctx.value.drawImage(
@@ -390,6 +655,29 @@ function stop() {
 		clearInterval(timers['timer'])
 		delete timers['timer']
 	}
+	
+	// Проверка near-miss
+	if (score.value > 0 && highScore.value > 0) {
+		const difference = highScore.value - score.value
+		if (difference > 0 && difference <= gameBalanceConfig.nearMiss.threshold) {
+			nearMissMessage.value = `Было близко! Ещё ${difference} до рекорда`
+		}
+	}
+	
+	// Сохранение рекорда
+	if (score.value > highScore.value) {
+		highScore.value = score.value
+		try {
+			localStorage.setItem('pianoNotes_highScore', score.value.toString())
+		} catch (e) {
+			// Игнорируем ошибки
+		}
+	}
+	
+	// Обновление daily challenge
+	updateChallengeProgress(perfectCount.value, score.value, maxCombo.value)
+	
+	lastFrameTime = 0
 }
 
 function setTimerValue(time: number) {
@@ -423,15 +711,21 @@ function toggleFullScreen() {
 	<div class="wrapper">
 		<div v-show="started" class="control">
 			<div class="score">
+				<div class="info score">
+					<span>{{ score }}</span>
+				</div>
 				<div class="info life">
 					<img src="/img/heart.svg" alt="" /> <span>{{ life }}</span>
-				</div>
-				<div class="info speed">
-					<img src="/img/flash.svg" alt="" /><span>{{ speed.toFixed(1) }}</span>
 				</div>
 				<div class="info time">
 					<img src="/img/hourglass.svg" alt="" /><span>{{ getTime }}</span>
 				</div>
+			</div>
+			<div v-if="combo >= 2" class="combo-display">
+				COMBO x{{ combo }}
+			</div>
+			<div v-if="comboText" class="combo-text">
+				{{ comboText }}
 			</div>
 		</div>
 		<canvas ref="canvas" id="canvas"></canvas>
@@ -497,11 +791,17 @@ function toggleFullScreen() {
 				</template>
 			</button>
 			<div v-show="time" class="score">
-				<div class="info speed">
-					<img src="/img/flash.svg" alt="" /><span>{{ speed.toFixed(1) }}</span>
+				<div class="info score">
+					<span>Score: {{ score }}</span>
+				</div>
+				<div v-if="highScore > 0" class="info high-score">
+					<span>Best: {{ highScore }}</span>
 				</div>
 				<div class="info time">
 					<img src="/img/hourglass.svg" alt="" /><span>{{ getTime }}</span>
+				</div>
+				<div v-if="nearMissMessage" class="near-miss">
+					{{ nearMissMessage }}
 				</div>
 			</div>
 			<a
@@ -629,6 +929,20 @@ function toggleFullScreen() {
 	.score {
 		max-width: unset;
 		font-size: 2.5rem !important;
+	}
+
+	.near-miss {
+		margin-top: 15px;
+		color: #ffd700;
+		font-size: 1.5rem;
+		font-weight: bold;
+		text-align: center;
+		text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+	}
+
+	.high-score {
+		color: #ffd700;
+		font-weight: bold;
 	}
 }
 

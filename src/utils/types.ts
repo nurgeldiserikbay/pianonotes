@@ -16,4 +16,15 @@ export interface INote {
 	name: string
 	x: number
 	color: string
+	// Анимации
+	animation?: {
+		type: 'spawn' | 'perfect' | 'fail' | 'combo'
+		startTime: number
+		duration: number
+		progress: number  // 0-1
+	}
+	scale?: number
+	alpha?: number
+	// Для perfect/combo системы
+	isPerfect?: boolean
 }
