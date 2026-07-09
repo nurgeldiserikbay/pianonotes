@@ -6,6 +6,7 @@ import { loadSnapshot, resetProgress, storeResult, updateSettings } from '@/stor
 import { CAMPAIGN_LEVELS, ENDLESS_MODE_CONFIG, MODE_DEFINITIONS, TIME_MODE_CONFIG } from '@/modes/modeDefinitions'
 import { buildChartFromPatterns, buildTimeModeChart, createSessionId } from '@/game/patterns'
 import { adManager } from '@/ads/adManager'
+import admob from '@/utils/admob'
 
 // Seconds a note takes to travel from spawn to the hit line. ~2.4-3.1s keeps the
 // rhythm readable; the previous value of 3 inflated this to ~14-18s (notes crawled).
@@ -150,13 +151,18 @@ export const useAppStore = defineStore('appStore', () => {
 
 		if (result.modeId === 'campaign') {
 			adManager.recordCampaignCompletion()
+			// adManager.consume() enforces the interstitial frequency cap (3-minute
+			// cooldown + every-3rd-campaign-milestone gate). Only fire a real ad when
+			// it grants the slot.
 			if (adManager.consume('campaign-progress', snapshot.value.settings.adsEnabled)) {
 				adMessage.value = 'Ad break ready after campaign milestone.'
+				void admob.showInterstitial()
 			} else {
 				adMessage.value = ''
 			}
 		} else if (result.remainingLives <= 0 && adManager.consume('defeat', snapshot.value.settings.adsEnabled)) {
 			adMessage.value = 'Ad break ready after defeat.'
+			void admob.showInterstitial()
 		} else {
 			adMessage.value = ''
 		}

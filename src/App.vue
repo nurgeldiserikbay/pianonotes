@@ -5,6 +5,7 @@ import { StatusBar } from '@capacitor/status-bar'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { Fullscreen } from '@boengli/capacitor-fullscreen'
 
+import Admob from '@/utils/admob'
 import { useAppStore } from '@/ui/stores/appStore'
 import AppShell from '@/ui/AppShell.vue'
 
@@ -26,6 +27,9 @@ async function syncOrientation(screenName: string) {
 }
 
 onMounted(async () => {
+	// Safe on web: the service no-ops off native platforms.
+	void Admob.initialize()
+
 	if (Capacitor.getPlatform() === 'android') {
 		await Fullscreen.activateImmersiveMode()
 		await StatusBar.hide()
