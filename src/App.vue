@@ -1,21 +1,31 @@
 <script lang="ts" setup>
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
 import { Capacitor } from '@capacitor/core'
 import { StatusBar } from '@capacitor/status-bar'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { Fullscreen } from '@boengli/capacitor-fullscreen'
 
-import Admob from '@/utils/admob'
+import { useAppStore } from '@/ui/stores/appStore'
+import AppShell from '@/ui/AppShell.vue'
 
-import { usePageStore } from '@/store/pageStore'
+const appStore = useAppStore()
 
-const pageStore = usePageStore()
+async function syncOrientation(screenName: string) {
+	try {
+		if (screenName === 'gameplay' && window.screen.orientation?.lock) {
+			await window.screen.orientation.lock('landscape')
+			return
+		}
+
+		if (screenName !== 'gameplay' && window.screen.orientation?.unlock) {
+			window.screen.orientation.unlock()
+		}
+	} catch {
+		// Browsers that do not support orientation lock fall back to the in-game overlay.
+	}
+}
 
 onMounted(async () => {
-	if (Capacitor.getPlatform() === 'android') {
-		Admob.initialize()
-	}
-
 	if (Capacitor.getPlatform() === 'android') {
 		await Fullscreen.activateImmersiveMode()
 		await StatusBar.hide()
@@ -23,15 +33,16 @@ onMounted(async () => {
 		await SplashScreen.hide()
 	}
 })
+
+watch(
+	() => appStore.screen,
+	(screenName) => {
+		void syncOrientation(screenName)
+	},
+	{ immediate: true }
+)
 </script>
 
 <template>
-	<component :is="pageStore.currentPageComponent" />
+	<AppShell />
 </template>
-
-<style lang="scss" scoped>
-.wrapper {
-	width: 100%;
-	min-height: 100dvh;
-}
-</style>

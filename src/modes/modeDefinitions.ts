@@ -1,0 +1,152 @@
+import type { BackgroundPreset, CampaignLevel, ModeDescriptor } from '@/core/models'
+
+export const BACKGROUND_PRESETS: Record<BackgroundPreset['id'], BackgroundPreset> = {
+	neon: {
+		id: 'neon',
+		name: 'Neon Pulse',
+		uiGradient: 'linear-gradient(145deg, #22185b 0%, #2d1f72 38%, #0d1735 100%)',
+		stageTop: [0x120f2d, 0x1f2354],
+		stageBottom: [0x0a0d19, 0x12172a],
+		glow: 0x69f0ff,
+		wave: 0x8a5cff,
+		accent: '#69f0ff',
+	},
+	'purple-blue': {
+		id: 'purple-blue',
+		name: 'Purple Blue',
+		uiGradient: 'linear-gradient(155deg, #2c1f7a 0%, #4731a6 38%, #13204b 100%)',
+		stageTop: [0x1b1a46, 0x33276e],
+		stageBottom: [0x101427, 0x18213f],
+		glow: 0x82a0ff,
+		wave: 0xb081ff,
+		accent: '#9db3ff',
+	},
+	aurora: {
+		id: 'aurora',
+		name: 'Aurora',
+		uiGradient: 'linear-gradient(160deg, #0c3357 0%, #186a7b 40%, #17265a 100%)',
+		stageTop: [0x0d2344, 0x176565],
+		stageBottom: [0x09111d, 0x0e2034],
+		glow: 0x74f7d5,
+		wave: 0x5bbcff,
+		accent: '#74f7d5',
+	},
+	'gold-stage': {
+		id: 'gold-stage',
+		name: 'Gold Stage',
+		uiGradient: 'linear-gradient(155deg, #5a3315 0%, #8b5626 45%, #2d1b45 100%)',
+		stageTop: [0x3c2814, 0x6d4b1d],
+		stageBottom: [0x120f18, 0x261d13],
+		glow: 0xffca5f,
+		wave: 0xff8b42,
+		accent: '#ffd56b',
+	},
+}
+
+export const MODE_DEFINITIONS: ModeDescriptor[] = [
+	{
+		id: 'campaign',
+		title: 'Campaign',
+		subtitle: 'Hit the melody',
+		description: 'Play bright, familiar tunes, earn stars, and unlock the next song.',
+		themeId: 'purple-blue',
+	},
+	{
+		id: 'time',
+		title: 'Time Mode',
+		subtitle: 'Race the melody',
+		description: 'Clear the full melody as fast as you can, but seven wrong keys end the run.',
+		themeId: 'aurora',
+	},
+	{
+		id: 'endless',
+		title: 'Endless',
+		subtitle: 'Melodic rush',
+		description: 'Survive a nonstop stream of musical patterns as the pace and pressure rise.',
+		themeId: 'neon',
+	},
+]
+
+export const CAMPAIGN_LEVELS: CampaignLevel[] = [
+	{
+		id: 'twinkle-intro',
+		title: 'Twinkle Intro',
+		artist: 'Traditional',
+		bpm: 92,
+		difficulty: 'easy',
+		themeId: 'purple-blue',
+		description: 'A warm opening tune with clean rhythm and easy note reads.',
+		patternIds: ['twinkleA', 'twinkleB'],
+		targetScore: 26000,
+	},
+	{
+		id: 'joy-steps',
+		title: 'Joy Steps',
+		artist: 'Beethoven',
+		bpm: 104,
+		difficulty: 'easy',
+		themeId: 'aurora',
+		description: 'A cheerful climb with a little more movement across the staff.',
+		patternIds: ['joyRise', 'joyResolve', 'joyRise'],
+		targetScore: 42000,
+	},
+	{
+		id: 'starlight-river',
+		title: 'Starlight River',
+		artist: 'Original Mix',
+		bpm: 112,
+		difficulty: 'normal',
+		themeId: 'neon',
+		description: 'Brighter runs, faster reads, and a smoother melodic flow.',
+		patternIds: ['riverRun', 'twinkleA', 'joyResolve'],
+		targetScore: 58000,
+	},
+	{
+		id: 'glass-bridge',
+		title: 'Glass Bridge',
+		artist: 'Original Mix',
+		bpm: 118,
+		difficulty: 'normal',
+		themeId: 'aurora',
+		description: 'Longer notes begin to sing while the pattern keeps moving.',
+		patternIds: ['holdBridge', 'joyRise', 'twinkleB'],
+		targetScore: 68000,
+	},
+	{
+		id: 'golden-stage',
+		title: 'Golden Stage',
+		artist: 'Festival Edit',
+		bpm: 124,
+		difficulty: 'hard',
+		themeId: 'gold-stage',
+		description: 'Chords land on strong beats and ask for sharper timing.',
+		patternIds: ['chordLift', 'riverRun', 'holdBridge'],
+		targetScore: 82000,
+	},
+	{
+		id: 'finale-burst',
+		title: 'Finale Burst',
+		artist: 'Original Mix',
+		bpm: 132,
+		difficulty: 'hard',
+		themeId: 'neon',
+		description: 'A colorful finale full of leaps, holds, and sparkling accents.',
+		patternIds: ['joyRise', 'chordLift', 'riverRun', 'holdBridge'],
+		targetScore: 102000,
+	},
+]
+
+export const TIME_MODE_CONFIG = {
+	bpm: 108,
+	lives: 7,
+	themeId: 'aurora' as const,
+	title: 'Time Mode',
+}
+
+export const ENDLESS_MODE_CONFIG = {
+	bpmStart: 104,
+	bpmMax: 158,
+	lives: 5,
+	themeId: 'neon' as const,
+	title: 'Endless',
+}
