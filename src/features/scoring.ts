@@ -128,7 +128,7 @@ export function formatTime(seconds: number) {
 export function buildSpeedLabel(modeId: GameModeId, bpm: number, approachMs: number) {
 	if (modeId === 'time') return 'Manual tempo'
 	const notesPerSecond = 1000 / Math.max(approachMs * 0.35, 1)
-	return `${bpm} BPM • ${notesPerSecond.toFixed(1)}x`
+	return `${Math.round(bpm)} BPM • ${notesPerSecond.toFixed(1)}x`
 }
 
 export function createEmptyHud(modeId: GameModeId): HudSnapshot {

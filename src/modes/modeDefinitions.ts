@@ -1,4 +1,5 @@
-import type { BackgroundPreset, CampaignLevel, ModeDescriptor } from '@/core/models'
+import type { BackgroundPreset, ModeDescriptor } from '@/core/models'
+import { generateCampaignLevels } from '@/modes/campaignGenerator'
 
 export const BACKGROUND_PRESETS: Record<BackgroundPreset['id'], BackgroundPreset> = {
 	neon: {
@@ -67,74 +68,11 @@ export const MODE_DEFINITIONS: ModeDescriptor[] = [
 	},
 ]
 
-export const CAMPAIGN_LEVELS: CampaignLevel[] = [
-	{
-		id: 'twinkle-intro',
-		title: 'Twinkle Intro',
-		artist: 'Traditional',
-		bpm: 92,
-		difficulty: 'easy',
-		themeId: 'purple-blue',
-		description: 'A warm opening tune with clean rhythm and easy note reads.',
-		patternIds: ['twinkleA', 'twinkleB'],
-		targetScore: 26000,
-	},
-	{
-		id: 'joy-steps',
-		title: 'Joy Steps',
-		artist: 'Beethoven',
-		bpm: 104,
-		difficulty: 'easy',
-		themeId: 'aurora',
-		description: 'A cheerful climb with a little more movement across the staff.',
-		patternIds: ['joyRise', 'joyResolve', 'joyRise'],
-		targetScore: 42000,
-	},
-	{
-		id: 'starlight-river',
-		title: 'Starlight River',
-		artist: 'Original Mix',
-		bpm: 112,
-		difficulty: 'normal',
-		themeId: 'neon',
-		description: 'Brighter runs, faster reads, and a smoother melodic flow.',
-		patternIds: ['riverRun', 'twinkleA', 'joyResolve'],
-		targetScore: 58000,
-	},
-	{
-		id: 'glass-bridge',
-		title: 'Glass Bridge',
-		artist: 'Original Mix',
-		bpm: 118,
-		difficulty: 'normal',
-		themeId: 'aurora',
-		description: 'Longer notes begin to sing while the pattern keeps moving.',
-		patternIds: ['holdBridge', 'joyRise', 'twinkleB'],
-		targetScore: 68000,
-	},
-	{
-		id: 'golden-stage',
-		title: 'Golden Stage',
-		artist: 'Festival Edit',
-		bpm: 124,
-		difficulty: 'hard',
-		themeId: 'gold-stage',
-		description: 'Chords land on strong beats and ask for sharper timing.',
-		patternIds: ['chordLift', 'riverRun', 'holdBridge'],
-		targetScore: 82000,
-	},
-	{
-		id: 'finale-burst',
-		title: 'Finale Burst',
-		artist: 'Original Mix',
-		bpm: 132,
-		difficulty: 'hard',
-		themeId: 'neon',
-		description: 'A colorful finale full of leaps, holds, and sparkling accents.',
-		patternIds: ['joyRise', 'chordLift', 'riverRun', 'holdBridge'],
-		targetScore: 102000,
-	},
-]
+// 300-level curriculum campaign: 12 worlds of 25 levels, each teaching one new note
+// group or mechanic (see modes/campaignWorlds.ts), difficulty-curved via
+// modes/difficultyCurve.ts. The original 6 hand-authored songs are preserved verbatim
+// inside modes/campaignGenerator.ts as milestone content — see that file.
+export const CAMPAIGN_LEVELS = generateCampaignLevels()
 
 export const TIME_MODE_CONFIG = {
 	bpm: 108,
@@ -144,7 +82,9 @@ export const TIME_MODE_CONFIG = {
 }
 
 export const ENDLESS_MODE_CONFIG = {
-	bpmStart: 104,
+	// Was 104 — nearly as fast as the campaign's late-game tempo right from note one.
+	// Starts gentle now and ramps up live (see RhythmGame.updateMovingDifficulty).
+	bpmStart: 82,
 	bpmMax: 158,
 	lives: 5,
 	themeId: 'neon' as const,

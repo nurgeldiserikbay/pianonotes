@@ -152,15 +152,15 @@ export function buildTimeModeChart(bpm: number) {
 	}))
 }
 
-function clampScaleIndex(index: number) {
-	return Math.max(0, Math.min(index, SCALE.length - 1))
+function clampIndex(index: number, length: number) {
+	return Math.max(0, Math.min(index, length - 1))
 }
 
-function maybeAddChord(baseLaneId: string, allowChord: boolean) {
+function maybeAddChord(pool: string[], baseLaneId: string, allowChord: boolean) {
 	if (!allowChord) return [baseLaneId]
-	const baseIndex = SCALE.indexOf(baseLaneId)
+	const baseIndex = pool.indexOf(baseLaneId)
 	if (baseIndex < 0) return [baseLaneId]
-	const third = SCALE[clampScaleIndex(baseIndex + 2)]
+	const third = pool[clampIndex(baseIndex + 2, pool.length)]
 	return [baseLaneId, third]
 }
 
@@ -171,6 +171,53 @@ export function createEndlessState(): EndlessComposerState {
 		lastTimeMs: 1200,
 		chunkIndex: 0,
 	}
+}
+
+export interface MotifComposerOptions {
+	notePool: string[]
+	rootIndex: number
+	motif: number[]
+	density: number
+	allowChord: boolean
+	holdChance: number
+	bpm: number
+	startMs: number
+	idPrefix: string
+	random?: () => number
+}
+
+// Shared procedural composer: walks `motif` (scale-degree offsets) from `rootIndex`
+// over `notePool`, optionally adding a chord third and/or turning a note into a hold.
+// Used by both endless mode (below, unseeded) and the campaign generator (seeded PRNG
+// for deterministic per-level charts).
+export function composeMotifChart(options: MotifComposerOptions): ChartNote[] {
+	const { notePool, rootIndex, motif, density, allowChord, holdChance, bpm, startMs, idPrefix } = options
+	const random = options.random ?? Math.random
+	const beatMs = 60000 / bpm
+	const notes: ChartNote[] = []
+
+	if (!notePool.length) return notes
+
+	motif.forEach((step, index) => {
+		const laneId = notePool[clampIndex(rootIndex + step, notePool.length)]
+		const beat = index * density
+		const durationBeats = random() < holdChance && index % 3 === 0 ? density * 2 : 0
+		const chordLanes = maybeAddChord(notePool, laneId, allowChord && index % 4 === 0)
+		const chordId = chordLanes.length > 1 ? `${idPrefix}-${index}` : undefined
+
+		chordLanes.forEach((chordLaneId, chordIndex) => {
+			notes.push({
+				id: `${idPrefix}-${index}-${chordIndex}`,
+				laneId: chordLaneId,
+				timeMs: Math.round(startMs + beat * beatMs),
+				durationMs: Math.round(durationBeats * beatMs),
+				type: durationBeats > 0 ? 'hold' : 'tap',
+				chordId,
+			})
+		})
+	})
+
+	return notes.sort((a, b) => a.timeMs - b.timeMs)
 }
 
 export function appendEndlessChunk(
@@ -188,31 +235,50 @@ export function appendEndlessChunk(
 	const allowChord = difficulty > 0.45
 	const holdChance = difficulty > 0.6 ? 0.24 : 0.12
 	const motif = [0, 2, 4, 2, 5, 4, 2, 0]
-	const notes: ChartNote[] = []
 
-	motif.forEach((step, index) => {
-		const laneId = SCALE[clampScaleIndex(rootIndex + step)]
-		const beat = index * density
-		const durationBeats = Math.random() < holdChance && index % 3 === 0 ? density * 2 : 0
-		const chordLanes = maybeAddChord(laneId, allowChord && index % 4 === 0)
-		const chordId = chordLanes.length > 1 ? `endless-${state.chunkIndex}-${index}` : undefined
-
-		chordLanes.forEach((chordLaneId, chordIndex) => {
-			notes.push({
-				id: `endless-${state.chunkIndex}-${index}-${chordIndex}`,
-				laneId: chordLaneId,
-				timeMs: Math.round(state.lastTimeMs + beat * beatMs),
-				durationMs: Math.round(durationBeats * beatMs),
-				type: durationBeats > 0 ? 'hold' : 'tap',
-				chordId,
-			})
-		})
+	const notes = composeMotifChart({
+		notePool: SCALE,
+		rootIndex,
+		motif,
+		density,
+		allowChord,
+		holdChance,
+		bpm,
+		startMs: state.lastTimeMs,
+		idPrefix: `endless-${state.chunkIndex}`,
 	})
 
 	state.lastTimeMs += chunkLength * density * beatMs
 	state.chunkIndex += 1
 
-	return notes.sort((a, b) => a.timeMs - b.timeMs)
+	return notes
+}
+
+// Untimed drill chart for Note Trainer: notes only ever come from the pool the
+// player has already met (SettingsState-independent), no repeats back-to-back.
+export function buildTrainerChart(notePool: string[], count = 20) {
+	const pool = notePool.length ? notePool : ['c4', 'd4', 'e4']
+	const notes: ChartNote[] = []
+	let lastLaneId: string | null = null
+
+	for (let index = 0; index < count; index += 1) {
+		let laneId = pool[Math.floor(Math.random() * pool.length)]
+		if (pool.length > 1) {
+			while (laneId === lastLaneId) {
+				laneId = pool[Math.floor(Math.random() * pool.length)]
+			}
+		}
+		lastLaneId = laneId
+		notes.push({
+			id: `trainer-${index}`,
+			laneId,
+			timeMs: index * 1000,
+			durationMs: 0,
+			type: 'tap',
+		})
+	}
+
+	return notes
 }
 
 export function createSessionId(prefix: SessionConfig['modeId']) {
