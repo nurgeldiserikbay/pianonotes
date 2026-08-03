@@ -1,6 +1,5 @@
 export type AppScreen =
 	| 'menu'
-	| 'mode-select'
 	| 'campaign-levels'
 	| 'records'
 	| 'settings'
@@ -14,6 +13,7 @@ export type ResultBadge = '0' | '1' | '2' | '3' | 'C' | 'B' | 'A' | 'S' | 'SS' |
 export type BackgroundPresetId = 'neon' | 'purple-blue' | 'aurora' | 'gold-stage'
 export type DifficultyId = 'easy' | 'normal' | 'hard'
 export type AdTrigger = 'campaign-progress' | 'defeat'
+export type NoteNamingSystem = 'letters' | 'solfege'
 
 export interface BackgroundPreset {
 	id: BackgroundPresetId
@@ -29,6 +29,7 @@ export interface BackgroundPreset {
 export interface PianoKeyDefinition {
 	id: string
 	label: string
+	solfegeLabel: string
 	audioId: string
 	tone: string
 	isBlack: boolean
@@ -69,8 +70,17 @@ export interface CampaignLevel {
 	difficulty: DifficultyId
 	themeId: BackgroundPresetId
 	description: string
-	patternIds: string[]
 	targetScore: number
+	// Hand-authored levels list pattern ids to build their chart from. Procedural
+	// levels omit this (or pass []) and are built from `notePool` instead — see
+	// buildProceduralCampaignChart in modes/campaignGenerator.ts.
+	patternIds?: string[]
+	notePool?: string[]
+	allowChords?: boolean
+	allowHolds?: boolean
+	worldId?: string
+	isMilestone?: boolean
+	index?: number
 }
 
 export interface ModeDescriptor {
@@ -88,6 +98,7 @@ export interface SettingsState {
 	showParticles: boolean
 	leftHandedHud: boolean
 	adsEnabled: boolean
+	noteNamingSystem: NoteNamingSystem
 }
 
 export interface ModeRecord {
@@ -122,6 +133,9 @@ export interface StorageSnapshot {
 	settings: SettingsState
 	campaignProgress: Record<string, CampaignProgress>
 	records: Record<GameModeId, ModeRecord[]>
+	// Lane ids the player has already met in campaign play. Drives the first-time-note
+	// tutorial toast and Note Trainer's practice pool.
+	notesIntroduced: string[]
 }
 
 export interface SessionConfig {
@@ -136,6 +150,10 @@ export interface SessionConfig {
 	approachMs: number
 	durationSec?: number
 	chart: ChartNote[]
+	// Lane ids this campaign session introduces for the first time (empty for
+	// non-campaign sessions, or once the player has already met every note in the
+	// level's world). Read by GameStage.vue to show the first-time tutorial toast.
+	newNotes?: string[]
 }
 
 export interface HudSnapshot {
@@ -195,4 +213,5 @@ export const DEFAULT_SETTINGS: SettingsState = {
 	showParticles: true,
 	leftHandedHud: false,
 	adsEnabled: true,
+	noteNamingSystem: 'letters',
 }

@@ -19,6 +19,7 @@ function createEmptySnapshot(): StorageSnapshot {
 			time: [],
 			endless: [],
 		},
+		notesIntroduced: [],
 	}
 }
 
@@ -57,6 +58,7 @@ export function loadSnapshot(): StorageSnapshot {
 				time: parsed.records?.time ?? [],
 				endless: parsed.records?.endless ?? [],
 			},
+			notesIntroduced: parsed.notesIntroduced ?? [],
 		}
 	} catch {
 		return createEmptySnapshot()
@@ -148,4 +150,19 @@ export function resetProgress() {
 	const fresh = createEmptySnapshot()
 	saveSnapshot(fresh)
 	return fresh
+}
+
+export function markNotesIntroduced(snapshot: StorageSnapshot, laneIds: string[]) {
+	if (!laneIds.length) return snapshot
+
+	const merged = new Set(snapshot.notesIntroduced)
+	laneIds.forEach((laneId) => merged.add(laneId))
+
+	const next: StorageSnapshot = {
+		...snapshot,
+		notesIntroduced: Array.from(merged),
+	}
+
+	saveSnapshot(next)
+	return next
 }

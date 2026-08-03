@@ -1,4 +1,4 @@
-import { Application, Container, Graphics } from 'pixi.js'
+import { Application, BitmapText, Container, Graphics } from 'pixi.js'
 
 import type {
 	ChartNote,
@@ -8,7 +8,7 @@ import type {
 	SessionConfig,
 	SettingsState,
 } from '@/core/models'
-import { PIANO_KEY_MAP } from '@/entities/piano'
+import { PIANO_KEY_MAP, getLaneLabel } from '@/entities/piano'
 import {
 	MOVING_JUDGEMENT_WINDOWS,
 	TIME_RESPONSE_WINDOWS,
@@ -33,6 +33,7 @@ interface NoteView {
 	stem: Graphics
 	flag: Graphics
 	ledger: Graphics
+	label: BitmapText
 	active: boolean
 	colorNumber: number
 	holdWidth: number
@@ -63,6 +64,13 @@ interface RhythmGameCallbacks {
 	onFlash: (label: string, color: string) => void
 }
 
+// Endless ramps live from the session's starting approachMs down to this floor over
+// ENDLESS_RAMP_DURATION_MS, easing in (see easeProgress) so a beginner gets a real
+// stretch of easy play before it climbs — same "gradual" principle as the campaign
+// curve, just live/continuous instead of level-by-level.
+const ENDLESS_FLOOR_APPROACH_MS = 1500
+const ENDLESS_RAMP_DURATION_MS = 240000
+
 const STAFF_STEPS: Record<string, number> = {
 	c4: -2,
 	cs4: -2,
@@ -90,8 +98,35 @@ const STAFF_STEPS: Record<string, number> = {
 	b5: 11,
 }
 
+// PixiJS Applications own a WebGL/WebGPU context and a set of renderer subsystems
+// that aren't designed to be destroyed and recreated many times in one page's
+// lifetime. This class used to make a fresh `Application` per gameplay session
+// (mount on enter, `app.destroy()` on exit) — repeating that intermittently
+// corrupted shared GPU/font resource bookkeeping and crashed the *next* session's
+// init with errors like "Cannot read properties of null (reading 'gc')" deep in
+// Pixi's own texture system. One Application, created once and reused for every
+// session, sidesteps the whole class of bug: only the scene content (`root` and
+// its children, see init/destroy below) is torn down between sessions, never the
+// renderer itself.
+let sharedAppReady: Promise<Application> | null = null
+
+function getSharedApp() {
+	if (!sharedAppReady) {
+		const app = new Application()
+		sharedAppReady = app
+			.init({
+				backgroundAlpha: 0,
+				antialias: true,
+				autoDensity: true,
+				resolution: Math.max(window.devicePixelRatio || 1, 1),
+			})
+			.then(() => app)
+	}
+	return sharedAppReady
+}
+
 export class RhythmGame {
-	private readonly app = new Application()
+	private app!: Application
 	private readonly root = new Container()
 	private readonly backgroundLayer = new Graphics()
 	private readonly ornamentLayer = new Graphics()
@@ -111,6 +146,7 @@ export class RhythmGame {
 
 	private endlessState = createEndlessState()
 	private mounted = false
+	private destroyed = false
 	private paused = false
 	private completed = false
 	private startAt = 0
@@ -127,6 +163,13 @@ export class RhythmGame {
 	private bottomLineY = 0
 	private lineGap = 18
 	private noteYMap: Record<string, number> = {}
+
+	// Note head/glow/stem/flag/ledger sizes below were tuned against the
+	// desktop-typical lineGap of 24px. Scale them with the actual staff spacing so
+	// notes don't dwarf a staff that's been compacted for a small mobile screen.
+	private get noteScale() {
+		return this.lineGap / 24
+	}
 
 	private score = 0
 	private combo = 0
@@ -168,19 +211,24 @@ export class RhythmGame {
 	async init() {
 		if (this.mounted) return
 
-		await this.app.init({
-			resizeTo: this.host,
-			backgroundAlpha: 0,
-			antialias: true,
-			autoDensity: true,
-			resolution: Math.max(window.devicePixelRatio || 1, 1),
-		})
+		const app = await getSharedApp()
+		// The host component can unmount (calling destroy()) while we were still
+		// waiting for the shared Application to finish initializing — if so, bail
+		// out instead of attaching a session nobody's looking at anymore.
+		if (this.destroyed) return
+
+		this.app = app
+		this.app.resizeTo = this.host
 
 		audioService.setEnabled(this.settings.soundEnabled)
 		audioService.preload()
 
 		this.host.innerHTML = ''
 		this.host.appendChild(this.app.canvas)
+
+		// Defensive: the previous session's `destroy()` should already have removed
+		// its own root, but never hand a dirty stage to a fresh session.
+		this.app.stage.removeChildren()
 		this.app.stage.addChild(this.root)
 		this.root.addChild(
 			this.backgroundLayer,
@@ -206,9 +254,13 @@ export class RhythmGame {
 	}
 
 	destroy() {
+		this.destroyed = true
 		if (!this.mounted) return
 		this.app.ticker.remove(this.update)
-		this.app.destroy(true, { children: true })
+		// Only ever tear down this session's own scene graph — the shared
+		// Application/renderer (see getSharedApp) stays alive for the next session.
+		this.app.stage.removeChild(this.root)
+		this.root.destroy({ children: true })
 		this.mounted = false
 	}
 
@@ -225,7 +277,11 @@ export class RhythmGame {
 	}
 
 	updateSettings(settings: SettingsState) {
+		const namingChanged = settings.noteNamingSystem !== this.settings.noteNamingSystem
 		this.settings = settings
+		if (namingChanged) {
+			this.rebuildNoteGeometry()
+		}
 	}
 
 	resize() {
@@ -443,8 +499,24 @@ export class RhythmGame {
 			const stem = new Graphics()
 			const flag = new Graphics()
 			const ledger = new Graphics()
+			// Learn-while-you-play: label the falling note itself (not just the
+			// keyboard), so the note name is visible before the player has to act.
+			// BitmapText (not Text): glyphs are pre-rasterized into a tintable atlas,
+			// which sidesteps a PixiJS v8 canvas-text fill/pattern bug that otherwise
+			// throws on createPattern() for freshly-created colored Text nodes.
+			const label = new BitmapText({
+				text: '',
+				style: {
+					fontSize: 12,
+					fontWeight: '800',
+					fill: 0xffffff,
+					align: 'center',
+				},
+			})
+			label.anchor.set(0.5, 0)
+			label.y = 16
 
-			container.addChild(glow, trail, head, stem, flag, ledger)
+			container.addChild(glow, trail, head, stem, flag, ledger, label)
 			this.notesLayer.addChild(container)
 
 			this.noteViews.set(note.id, {
@@ -456,6 +528,7 @@ export class RhythmGame {
 				stem,
 				flag,
 				ledger,
+				label,
 				active: true,
 				colorNumber: 0,
 				holdWidth: 0,
@@ -473,6 +546,16 @@ export class RhythmGame {
 		return Number(`0x${color.replace('#', '')}`)
 	}
 
+	// Scale each RGB channel by `factor` (<1 darkens, >1 lightens) — used to build a
+	// glossy 3D notehead (dark rim + bright core) from a single lane color, matching
+	// the Stitch note renders without loading any texture.
+	private shadeColor(color: number, factor: number) {
+		const r = Math.min(255, Math.round(((color >> 16) & 0xff) * factor))
+		const g = Math.min(255, Math.round(((color >> 8) & 0xff) * factor))
+		const b = Math.min(255, Math.round((color & 0xff) * factor))
+		return (r << 16) | (g << 8) | b
+	}
+
 	private getBaseHoldWidth(note: ChartNote) {
 		if (note.type !== 'hold') return 0
 		return Math.max(
@@ -483,37 +566,53 @@ export class RhythmGame {
 	}
 
 	private buildNoteGeometry(noteView: NoteView) {
-		const { note, glow, trail, head, stem, flag, ledger } = noteView
+		const { note, glow, trail, head, stem, flag, ledger, label } = noteView
 		const colorNumber = this.getLaneColorNumber(note.laneId)
 		const y = this.noteYMap[note.laneId] ?? this.bottomLineY
 		const holdWidth = this.getBaseHoldWidth(note)
+		const s = this.noteScale
+
+		label.text = getLaneLabel(note.laneId, this.settings.noteNamingSystem)
+		label.style.fontSize = Math.max(9, Math.round(12 * s))
+		label.y = 16 * s
 
 		noteView.colorNumber = colorNumber
 		noteView.holdWidth = holdWidth
 
 		glow.clear()
-		glow.circle(0, 0, 20).fill({ color: colorNumber, alpha: 0.18 })
+		// Two-stop halo (wide soft + tight bright) for a bloom that reads as emitted
+		// light, matching the neon glow on the Stitch note assets.
+		glow.circle(0, 0, 22 * s).fill({ color: colorNumber, alpha: 0.14 })
+		glow.circle(0, 0, 14 * s).fill({ color: colorNumber, alpha: 0.16 })
 
 		trail.clear()
 		if (holdWidth > 0) {
-			trail.roundRect(2, -7, holdWidth, 14, 10).fill({
+			trail.roundRect(2 * s, -7 * s, holdWidth, 14 * s, 10 * s).fill({
 				color: colorNumber,
 				alpha: 0.26,
 			})
 		}
 
+		// Glossy 3D notehead: dark rim → saturated body → lighter upper core →
+		// specular top highlight → pinpoint hotspot. Same compact 14×10 footprint as
+		// before so the note's pitch position on the staff stays unambiguous.
+		const rim = this.shadeColor(colorNumber, 0.62)
+		const core = this.shadeColor(colorNumber, 1.22)
 		head.clear()
-		head.ellipse(0, 0, 14, 10).fill({ color: colorNumber, alpha: 0.96 })
-		head.ellipse(-2, -2, 10, 6).fill({ color: 0xffffff, alpha: 0.18 })
+		head.ellipse(0, 0, 15 * s, 11 * s).fill({ color: rim, alpha: 0.98 })
+		head.ellipse(0, 0, 13 * s, 9.2 * s).fill({ color: colorNumber, alpha: 0.98 })
+		head.ellipse(-1.5 * s, -2 * s, 9.5 * s, 6 * s).fill({ color: core, alpha: 0.85 })
+		head.ellipse(-3 * s, -3.4 * s, 5 * s, 3 * s).fill({ color: 0xffffff, alpha: 0.42 })
+		head.circle(-4.5 * s, -4 * s, 1.6 * s).fill({ color: 0xffffff, alpha: 0.75 })
 
 		stem.clear()
-		stem.roundRect(11, -38, 4, 39, 2).fill({ color: 0xffffff, alpha: 0.95 })
+		stem.roundRect(11 * s, -38 * s, 4 * s, 39 * s, 2 * s).fill({ color: 0xffffff, alpha: 0.95 })
 
 		flag.clear()
-		flag.moveTo(15, -38)
-		flag.bezierCurveTo(31, -34, 32, -18, 14, -18)
+		flag.moveTo(15 * s, -38 * s)
+		flag.bezierCurveTo(31 * s, -34 * s, 32 * s, -18 * s, 14 * s, -18 * s)
 		flag.stroke({
-			width: 4,
+			width: 4 * s,
 			color: note.type === 'hold' ? colorNumber : 0xffffff,
 			alpha: 0.88,
 			cap: 'round',
@@ -609,19 +708,20 @@ export class RhythmGame {
 		const bottomLineY = this.bottomLineY
 		const maxY = bottomLineY + this.lineGap
 		const minY = topLineY - this.lineGap
+		const halfWidth = 18 * this.noteScale
 
 		for (let ledgerY = bottomLineY + this.lineGap; ledgerY <= y + 2; ledgerY += this.lineGap) {
 			if (ledgerY <= maxY) {
-				graphics.moveTo(-18, ledgerY - y)
-				graphics.lineTo(18, ledgerY - y)
+				graphics.moveTo(-halfWidth, ledgerY - y)
+				graphics.lineTo(halfWidth, ledgerY - y)
 				graphics.stroke({ width: 2, color: 0xffffff, alpha: 0.36 })
 			}
 		}
 
 		for (let ledgerY = topLineY - this.lineGap; ledgerY >= y - 2; ledgerY -= this.lineGap) {
 			if (ledgerY >= minY) {
-				graphics.moveTo(-18, ledgerY - y)
-				graphics.lineTo(18, ledgerY - y)
+				graphics.moveTo(-halfWidth, ledgerY - y)
+				graphics.lineTo(halfWidth, ledgerY - y)
 				graphics.stroke({ width: 2, color: 0xffffff, alpha: 0.36 })
 			}
 		}
@@ -909,11 +1009,14 @@ export class RhythmGame {
 			return
 		}
 
-		const progress = this.easeProgress(elapsedMs / 180000)
+		const progress = this.easeProgress(elapsedMs / ENDLESS_RAMP_DURATION_MS)
 		this.currentBpm =
 			ENDLESS_MODE_CONFIG.bpmStart +
 			(ENDLESS_MODE_CONFIG.bpmMax - ENDLESS_MODE_CONFIG.bpmStart) * progress
-		this.currentApproachMs = Math.max(1600, this.session.approachMs - progress * 1400)
+		this.currentApproachMs = Math.max(
+			ENDLESS_FLOOR_APPROACH_MS,
+			this.session.approachMs - (this.session.approachMs - ENDLESS_FLOOR_APPROACH_MS) * progress
+		)
 
 		const futureNotes = this.session.chart.filter((note) => !note.consumed && note.timeMs > elapsedMs - 200)
 		const furthest = futureNotes[futureNotes.length - 1]?.timeMs ?? 0

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { BLACK_KEYS, WHITE_KEYS } from '@/entities/piano'
+import type { NoteNamingSystem } from '@/core/models'
+import { BLACK_KEYS, WHITE_KEYS, getKeyLabel } from '@/entities/piano'
 
 const props = defineProps<{
 	activeKeys: string[]
+	namingSystem: NoteNamingSystem
 	disabled?: boolean
 }>()
 
@@ -27,7 +29,6 @@ function release(laneId: string) {
 
 <template>
 	<div class="keyboard-shell">
-		<div class="keyboard-badge">2 Octaves</div>
 		<div class="keyboard">
 			<div class="white-keys">
 				<button
@@ -41,7 +42,7 @@ function release(laneId: string) {
 					@pointerleave.prevent="release(key.id)"
 					@pointercancel.prevent="release(key.id)"
 				>
-					<span>{{ key.label }}</span>
+					<span>{{ getKeyLabel(key, namingSystem) }}</span>
 				</button>
 			</div>
 
@@ -60,7 +61,7 @@ function release(laneId: string) {
 					@pointerleave.prevent="release(key.id)"
 					@pointercancel.prevent="release(key.id)"
 				>
-					<span>{{ key.label }}</span>
+					<span>{{ getKeyLabel(key, namingSystem) }}</span>
 				</button>
 			</div>
 		</div>
@@ -70,7 +71,7 @@ function release(laneId: string) {
 <style scoped lang="scss">
 .keyboard-shell {
 	position: relative;
-	padding: 0.85rem;
+	padding: 0.6rem;
 	border-radius: 2rem;
 	background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(28, 18, 58, 0.46), rgba(16, 19, 34, 0.55));
 	border: 1px solid rgba(255, 255, 255, 0.16);
@@ -81,24 +82,9 @@ function release(laneId: string) {
 	backdrop-filter: blur(18px);
 }
 
-.keyboard-badge {
-	position: absolute;
-	top: 0.65rem;
-	right: 0.8rem;
-	z-index: 2;
-	padding: 0.35rem 0.7rem;
-	border-radius: 999px;
-	background: linear-gradient(135deg, rgba(255, 214, 107, 0.28), rgba(255, 122, 214, 0.24));
-	color: rgba(255, 255, 255, 0.9);
-	font-size: 0.72rem;
-	font-weight: 800;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-}
-
 .keyboard {
 	position: relative;
-	height: clamp(9rem, 24vh, 16rem);
+	height: clamp(9rem, 27vh, 17rem);
 }
 
 .white-keys {
@@ -126,13 +112,30 @@ function release(laneId: string) {
 	padding-bottom: 1rem;
 	border-radius: 0 0 1.15rem 1.15rem;
 	background:
-		linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(231, 238, 255, 0.92) 55%, rgba(205, 214, 234, 0.95));
+		linear-gradient(
+			180deg,
+			rgba(255, 255, 255, 0.96),
+			color-mix(in srgb, var(--key-accent) 12%, rgba(231, 238, 255, 0.92)) 55%,
+			color-mix(in srgb, var(--key-accent) 20%, rgba(205, 214, 234, 0.95))
+		);
 	box-shadow:
-		inset 0 -0.55rem 0 rgba(165, 174, 201, 0.5),
+		inset 0 -0.55rem 0 color-mix(in srgb, var(--key-accent) 22%, rgba(165, 174, 201, 0.5)),
 		0 0.35rem 1rem rgba(0, 0, 0, 0.18);
 	color: rgba(10, 14, 28, 0.7);
 	font-size: clamp(0.75rem, 1.3vw, 0.95rem);
 	font-weight: 700;
+}
+
+.white-key::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 0.3rem;
+	border-radius: 0 0 1.15rem 1.15rem;
+	background: var(--key-accent);
+	opacity: 0.55;
 }
 
 .white-key::after {
@@ -172,9 +175,14 @@ function release(laneId: string) {
 	padding-bottom: 0.8rem;
 	border-radius: 0 0 0.9rem 0.9rem;
 	background:
-		linear-gradient(180deg, rgba(39, 45, 72, 0.98), rgba(10, 12, 22, 0.98));
+		linear-gradient(
+			180deg,
+			color-mix(in srgb, var(--key-accent) 30%, rgba(39, 45, 72, 0.98)),
+			rgba(10, 12, 22, 0.98)
+		);
 	box-shadow:
 		inset 0 -0.55rem 0 rgba(0, 0, 0, 0.35),
+		inset 0 0.16rem 0 color-mix(in srgb, var(--key-accent) 55%, transparent),
 		0 0.35rem 1rem rgba(0, 0, 0, 0.4);
 	color: rgba(255, 255, 255, 0.82);
 	font-size: clamp(0.62rem, 0.95vw, 0.8rem);
@@ -199,6 +207,30 @@ function release(laneId: string) {
 
 	.white-keys {
 		gap: 0.2rem;
+	}
+}
+
+/* Short landscape phones: the fixed rem floor on .keyboard plus a squeezed HUD
+   above it can push the stage (and the note staff on it) out of view — shrink
+   the floor instead. Thresholds match GameStage.vue's HUD breakpoints. */
+@media (max-height: 560px) {
+	.keyboard-shell {
+		padding: 0.4rem;
+	}
+
+	.keyboard {
+		height: clamp(6rem, 20vh, 16rem);
+	}
+}
+
+@media (max-height: 380px) {
+	.keyboard-shell {
+		padding: 0.3rem;
+		border-radius: 1rem;
+	}
+
+	.keyboard {
+		height: clamp(5rem, 18vh, 16rem);
 	}
 }
 </style>
