@@ -1,0 +1,57 @@
+<!--
+	Placeholder mascot — flat, geometric "cat conductor" mark.
+
+	This is deliberately simple: hand-coded SVG can't reach the shaded,
+	expressive illustration style from the reference art. Swap this file (and
+	any other src/assets/mascot/cat-*.svg siblings) for real illustrated
+	artwork whenever it's ready — nothing else needs to change, every screen
+	that shows the mascot imports it by this same file name.
+-->
+<svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+	<ellipse cx="100" cy="185" rx="58" ry="12" fill="#000000" opacity="0.18"/>
+
+	<!-- tail -->
+	<path d="M148 150C168 145 176 118 162 100C158 95 151 96 150 103C158 114 154 132 138 138"
+		stroke="#F2C89A" stroke-width="16" stroke-linecap="round"/>
+
+	<!-- body -->
+	<ellipse cx="100" cy="140" rx="52" ry="46" fill="#F7D9B4"/>
+
+	<!-- ears -->
+	<path d="M56 68L44 24L88 54Z" fill="#F7D9B4"/>
+	<path d="M144 68L156 24L112 54Z" fill="#F7D9B4"/>
+	<path d="M62 60L55 36L78 52Z" fill="#F2A6C0"/>
+	<path d="M138 60L145 36L122 52Z" fill="#F2A6C0"/>
+
+	<!-- head -->
+	<circle cx="100" cy="88" r="50" fill="#FBE6C8"/>
+
+	<!-- cheeks -->
+	<circle cx="66" cy="98" r="10" fill="#F7B8C6" opacity="0.7"/>
+	<circle cx="134" cy="98" r="10" fill="#F7B8C6" opacity="0.7"/>
+
+	<!-- eyes -->
+	<circle cx="80" cy="84" r="7" fill="#2A2233"/>
+	<circle cx="120" cy="84" r="7" fill="#2A2233"/>
+	<circle cx="82.5" cy="81.5" r="2.2" fill="#ffffff"/>
+	<circle cx="122.5" cy="81.5" r="2.2" fill="#ffffff"/>
+
+	<!-- nose + mouth -->
+	<path d="M96 98L100 103L104 98Z" fill="#F2879E"/>
+	<path d="M100 103V107" stroke="#2A2233" stroke-width="2.4" stroke-linecap="round"/>
+	<path d="M100 107C96 111 90 111 87 108" stroke="#2A2233" stroke-width="2.4" stroke-linecap="round"/>
+	<path d="M100 107C104 111 110 111 113 108" stroke="#2A2233" stroke-width="2.4" stroke-linecap="round"/>
+
+	<!-- whiskers -->
+	<path d="M40 92H62M40 100H61" stroke="#E3A15C" stroke-width="2.2" stroke-linecap="round"/>
+	<path d="M160 92H138M160 100H139" stroke="#E3A15C" stroke-width="2.2" stroke-linecap="round"/>
+
+	<!-- bow tie -->
+	<path d="M100 132L80 120V144L100 132Z" fill="#B56CFF"/>
+	<path d="M100 132L120 120V144L100 132Z" fill="#9B4CFF"/>
+	<circle cx="100" cy="132" r="6" fill="#FFC94D"/>
+
+	<!-- paws -->
+	<ellipse cx="72" cy="178" rx="16" ry="10" fill="#FBE6C8"/>
+	<ellipse cx="128" cy="178" rx="16" ry="10" fill="#FBE6C8"/>
+</svg>
