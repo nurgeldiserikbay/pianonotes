@@ -1,0 +1,95 @@
+// Design tokens for the "Piano Notes" visual redesign — palette, radius scale,
+// shadows, glows and per-mode gradients. Single source of truth so every screen
+// pulls the same values instead of re-declaring one-off hex codes.
+
+:root {
+	// Per-mode identity colors
+	--mode-campaign: #ffc94d;
+	--mode-campaign-deep: #ff8f3d;
+	--mode-time: #4dd0ff;
+	--mode-time-deep: #2f8bff;
+	--mode-endless: #b56cff;
+	--mode-endless-deep: #8a3dff;
+	--mode-trainer: #4dff9b;
+	--mode-trainer-deep: #22cf7a;
+	--mode-records: #ff8a3d;
+	--mode-records-deep: #ff5f2d;
+	--mode-settings: #aab3d1;
+	--mode-settings-deep: #7d87ad;
+
+	// Grade letter colors (S/A/B/C/D)
+	--grade-s: #ffd54f;
+	--grade-a: #ff6fd8;
+	--grade-b: #7be495;
+	--grade-c: #59b9ff;
+	--grade-d: #9aa3bd;
+
+	// Radius scale — bigger containers get bigger radii, nested/small elements
+	// always step down at least one tier so corners never look "the same size"
+	// on wildly different-sized boxes.
+	--radius-xs: 6px;
+	--radius-s: 12px;
+	--radius-m: 18px;
+	--radius-l: 24px;
+	--radius-xl: 32px;
+	--radius-round: 999px;
+
+	// Shadow presets (depth)
+	--shadow-1: 0 4px 14px rgba(0, 0, 0, 0.22);
+	--shadow-2: 0 12px 32px rgba(0, 0, 0, 0.28);
+	--shadow-3: 0 24px 60px rgba(0, 0, 0, 0.32);
+
+	// Glossy top-left highlight used on saturated cards/buttons — the toy-like
+	// "shine" from the reference sheet's button/card states.
+	--shine: linear-gradient(125deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 42%);
+
+	// 3D asset URLs (Stitch renders in public/img/stitch, served at /img/stitch).
+	// Central so a re-export or re-crop only touches this block.
+	--asset-bg-scene: url('/img/stitch/bg-menu.jpg');
+	--asset-mascot: url('/img/stitch/mascot-cat-wizard.png');
+	--asset-star-gold: url('/img/stitch/star-gold.png');
+	--asset-treble: url('/img/stitch/treble-clef.png');
+	--asset-notes-group: url('/img/stitch/notes-group.png');
+
+	// Per-mode glossy 3D note asset (one recognizable color per mode identity).
+	--note-campaign: url('/img/stitch/note-yellow.png');
+	--note-time: url('/img/stitch/note-cyan.png');
+	--note-endless: url('/img/stitch/note-purple.png');
+	--note-trainer: url('/img/stitch/note-green.png');
+	--note-records: url('/img/stitch/note-orange.png');
+	--note-settings: url('/img/stitch/note-white.png');
+
+	// Standard drop-shadow for a transparent 3D render placed over a scene, so it
+	// reads as a physical toy piece rather than a pasted sticker.
+	--art-shadow: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.4));
+}
+
+// Glow utility — soft colored halo behind an element, tinted per mode/grade.
+@mixin glow($color, $alpha: 0.5, $size: 1.6rem) {
+	box-shadow: 0 0 $size color-mix(in srgb, $color $alpha * 100%, transparent);
+}
+
+// Per-mode gradient utility classes — used by mode cards, HUD accents, buttons.
+.grad-campaign {
+	background: linear-gradient(150deg, var(--mode-campaign) 0%, var(--mode-campaign-deep) 100%);
+}
+
+.grad-time {
+	background: linear-gradient(150deg, var(--mode-time) 0%, var(--mode-time-deep) 100%);
+}
+
+.grad-endless {
+	background: linear-gradient(150deg, var(--mode-endless) 0%, var(--mode-endless-deep) 100%);
+}
+
+.grad-trainer {
+	background: linear-gradient(150deg, var(--mode-trainer) 0%, var(--mode-trainer-deep) 100%);
+}
+
+.grad-records {
+	background: linear-gradient(150deg, var(--mode-records) 0%, var(--mode-records-deep) 100%);
+}
+
+.grad-settings {
+	background: linear-gradient(150deg, var(--mode-settings) 0%, var(--mode-settings-deep) 100%);
+}
