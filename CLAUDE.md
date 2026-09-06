@@ -1,5 +1,10 @@
 # Piano Notes — UI Redesign
 
+> Product source of truth: read `PRODUCT_DIRECTION.md` and `STYLE_BRIEF.md`
+> before changing behaviour or screen hierarchy. This file supplies visual and
+> implementation guidance. Where older documents mention falling notes or a
+> timing-lane game, the static staff and player-paced interaction win.
+
 We need to redesign and improve the existing Piano Notes game UI.
 
 The goal is NOT to create a complex illustrated game with many generated images, 3D scenes, fantasy worlds, or heavy visual effects.
