@@ -386,6 +386,23 @@ onBeforeUnmount(() => {
 	font-weight: var(--weight-black);
 	line-height: 1;
 	cursor: pointer;
+	position: relative;
+}
+
+/* The button tracks the chip height so the HUD stays one line, and on a phone
+   that leaves it 26px across — 21px at the 640×300 floor. That is the control
+   that ends a level, and it is too small to hit with a thumb. The drawn size
+   stays (growing it would push the whole HUD row down and steal staff height);
+   the target is widened past it with a transparent overlay, which costs no
+   layout. Kept to 38px so it cannot reach the chips beside it. */
+.exit-btn::after {
+	content: '';
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: max(100%, 38px);
+	height: max(100%, 38px);
+	transform: translate(-50%, -50%);
 }
 
 /* Pills size to their own content instead of stretching into 4 equal grid

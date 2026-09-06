@@ -216,9 +216,26 @@ function onScrubEnd(event: PointerEvent) {
 	if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId)
 }
 
+// At the smallest supported screen the control row is wider than the bar it
+// sits in, and its scrollbar is hidden on purpose — which left the last button
+// looking cut off rather than scrollable. Rather than shrink controls that are
+// already thumb-sized, the row says so: these two flags drive a fade on
+// whichever edge still has controls behind it.
+const transportEl = ref<HTMLElement | null>(null)
+const transportOverflows = ref(false)
+const transportAtEnd = ref(true)
+
+function measureTransport() {
+	const el = transportEl.value
+	if (!el) return
+	transportOverflows.value = el.scrollWidth > el.clientWidth + 1
+	transportAtEnd.value = el.scrollLeft >= el.scrollWidth - el.clientWidth - 1
+}
+
 function handleResize() {
 	isLandscape.value = window.innerWidth > window.innerHeight
 	staff?.resize()
+	measureTransport()
 }
 
 watch(notes, (value) => {
@@ -253,6 +270,7 @@ onMounted(async () => {
 		instance.setCursor(0)
 	}
 
+	measureTransport()
 	frame = window.requestAnimationFrame(tick)
 })
 
@@ -288,7 +306,12 @@ onBeforeUnmount(() => {
 			@pointercancel.prevent="onScrubEnd"
 		/>
 
-		<div class="transport">
+		<div
+			ref="transportEl"
+			class="transport"
+			:class="{ 'has-more': transportOverflows && !transportAtEnd }"
+			@scroll="measureTransport"
+		>
 			<button class="ghost-btn" aria-label="To the start" @click="setCursor(0)">⏮</button>
 			<button
 				class="ghost-btn"
@@ -502,6 +525,40 @@ onBeforeUnmount(() => {
 		font-size: var(--text-md);
 		padding: 0.25rem 0.45rem;
 	}
+}
+
+/* At the supported floor the row still did not fit: 708px of controls in a
+   622px bar, so "Erase" and "Clear" sat past the right edge — and the scrollbar
+   is hidden here, so nothing on screen suggested they were there at all.
+   Tightening the gaps and the two reserved widths brings the row inside the
+   bar, which puts the sideways scroll back to what it should be: a fallback for
+   anything narrower than we support, not the way controls are normally found. */
+@media (max-height: 420px) {
+	.transport {
+		gap: 0.22rem;
+	}
+
+	.ghost-btn,
+	.roll-btn {
+		padding: 0.3rem 0.42rem;
+	}
+
+	.roll-btn {
+		min-width: 2.2rem;
+	}
+
+	.position {
+		min-width: 2.1rem;
+	}
+}
+
+/* The only thing that tells a player the row continues: its right edge fades
+   while controls are still hidden behind it, and clears once the row is
+   scrolled to the end. The buttons under the fade stay clickable — a mask
+   changes what is drawn, not what is hit. */
+.transport.has-more {
+	-webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.4rem), transparent 100%);
+	mask-image: linear-gradient(to right, #000 calc(100% - 2.4rem), transparent 100%);
 }
 
 .transport-gap {
