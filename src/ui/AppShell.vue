@@ -1512,8 +1512,13 @@ const isNewBestAccuracy = computed(() => {
    its speech bubble reaches across them. Dropping just the mascot buys back the
    height and keeps the level road, which is the part a player actually uses.
    Without this the 375-tall landscape iPhones overflowed — 667×375 by 30px,
-   812×375 by 11 — with no way to scroll to what fell off. */
-@media (orientation: landscape) and (min-height: 361px) and (max-height: 400px) {
+   812×375 by 11 — with no way to scroll to what fell off.
+
+   The ceiling is 420 rather than 400 so it lines up with the phone treatment
+   below: at 400 a narrow 640-wide window in the 401–420 band still overflowed,
+   by 13px, and two breakpoints a few pixels apart is a gap waiting to be
+   rediscovered. */
+@media (orientation: landscape) and (min-height: 361px) and (max-height: 420px) {
 	.menu-screen .menu-host {
 		display: none;
 	}
