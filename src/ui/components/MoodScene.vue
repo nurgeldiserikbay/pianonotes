@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { computed, toRef } from 'vue'
+
 import type { MelodyMood } from '@/core/models'
+import { useDropInArt } from '@/ui/useDropInArt'
 
 // A scene per melody mood, drawn as inline SVG rather than shipped as a photo.
 //
@@ -13,7 +16,13 @@ import type { MelodyMood } from '@/core/models'
 // scatter of stars. That layering is what makes a 320×120 strip read as a place
 // rather than as a coloured rectangle — the flat two-hill version before this
 // looked like a placeholder next to the rest of the neon UI.
-defineProps<{ mood: MelodyMood }>()
+const props = defineProps<{ mood: MelodyMood }>()
+
+// A painted cover, if one has been dropped into public/img/moods/. The drawn
+// scene below is what shows until then — and what shows again if the file is
+// ever removed.
+const mood = toRef(props, 'mood')
+const cover = useDropInArt(computed(() => `/img/moods/${mood.value}.png`))
 
 // Deterministic star field: the same seed every render, so a card does not
 // twinkle differently each time Vue re-draws it.
@@ -27,7 +36,16 @@ const STARS = [
 
 <template>
 	<div class="mood-scene" :class="`mood-${mood}`" aria-hidden="true">
-		<svg viewBox="0 0 320 120" preserveAspectRatio="xMidYMid slice">
+		<img
+			v-if="cover.src.value"
+			class="mood-art"
+			:src="cover.src.value"
+			alt=""
+			draggable="false"
+			@error="cover.onError"
+		/>
+
+		<svg v-else viewBox="0 0 320 120" preserveAspectRatio="xMidYMid slice">
 			<defs>
 				<linearGradient :id="`sky-${mood}`" x1="0" y1="0" x2="0" y2="1">
 					<stop offset="0%" class="sky-top" />
@@ -142,10 +160,16 @@ const STARS = [
 	overflow: hidden;
 }
 
-svg {
+svg,
+.mood-art {
 	display: block;
 	width: 100%;
 	height: 100%;
+}
+
+.mood-art {
+	object-fit: cover;
+	user-select: none;
 }
 
 /* One palette per mood: sky in three stops, three silhouette layers, and the

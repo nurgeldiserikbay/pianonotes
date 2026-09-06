@@ -7,6 +7,7 @@ import { formatMs } from '@/features/reading'
 import { getLaneLabel } from '@/entities/piano'
 import { tuneDurationLabel } from '@/features/composer'
 import { useAppStore } from '@/ui/stores/appStore'
+import { useDropInArt } from '@/ui/useDropInArt'
 import { getMelodyMood } from '@/modes/melodies'
 
 import IconMusic from '@/assets/icons/music.svg'
@@ -36,11 +37,8 @@ import ComposerStage from './components/ComposerStage.vue'
 
 const appStore = useAppStore()
 
-// Bound rather than written inline: a literal src in a template is resolved at
-// build time, and this file only exists once someone drops it into public/.
-const LOGO_SRC = '/img/logo-piano-notes.png'
-// Flipped off the moment the file 404s, which is the state the repo ships in.
-const logoOk = ref(true)
+// The drawn wordmark, if it has been dropped in; the styled heading otherwise.
+const logo = useDropInArt(() => '/img/logo-piano-notes.png')
 const screen = computed(() => appStore.screen)
 
 // What a level node says about itself. Everything is playable, so the label is a
@@ -307,11 +305,11 @@ const isNewBestAccuracy = computed(() => {
 					     must not wait for it. -->
 					<h1 class="menu-logo">
 						<img
-							v-if="logoOk"
+							v-if="logo.src.value"
 							class="menu-logo-art"
-							:src="LOGO_SRC"
+							:src="logo.src.value"
 							alt="Piano Notes"
-							@error="logoOk = false"
+							@error="logo.onError"
 						/>
 						<span v-else>Piano Notes</span>
 					</h1>
