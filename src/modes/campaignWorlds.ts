@@ -15,8 +15,31 @@ export interface WorldDefinition {
 	title: string
 	concept: string
 	themeId: BackgroundPresetId
+	coverId: ChapterCoverId
 	newNoteIds: string[]
 	difficulty: DifficultyId
+}
+
+// The six painted covers, in the order they were drawn: a moonlit meadow at one
+// end and a lit concert hall at the other. They are a climb, not a set of
+// interchangeable moods, so they are spread across however many chapters the
+// library currently makes rather than cycled every six. A player who reaches the
+// last chapter arrives at the finale; one still on tune three is still outdoors.
+export const CHAPTER_COVERS = [
+	'01-first-tunes',
+	'02-nursery-favourites',
+	'03-songs-you-know',
+	'04-rhythm-garden',
+	'05-starlight-stage',
+	'06-grand-finale',
+] as const
+
+export type ChapterCoverId = (typeof CHAPTER_COVERS)[number]
+
+function coverForChapter(chapterIndex: number, totalChapters: number): ChapterCoverId {
+	if (totalChapters <= 1) return CHAPTER_COVERS[0]
+	const step = Math.floor((chapterIndex / totalChapters) * CHAPTER_COVERS.length)
+	return CHAPTER_COVERS[Math.min(step, CHAPTER_COVERS.length - 1)]
 }
 
 // A chapter mixes moods, so it simply borrows the character of the melody it
@@ -100,6 +123,7 @@ export const CAMPAIGN_WORLDS: WorldDefinition[] = Array.from(
 			title: CHAPTER_TITLES[chapterIndex] ?? `Chapter ${chapterIndex + 1}`,
 			concept: melodies.map((melody) => melody.title).join(' · '),
 			themeId: getMelodyMood(melodies[0]?.id ?? ''),
+			coverId: coverForChapter(chapterIndex, chapterCount),
 			newNoteIds,
 			difficulty: difficultyForChapter(chapterIndex, chapterCount),
 		}
@@ -114,4 +138,11 @@ export function getNewNotesForLevel(_worldIndex: number, _levelInWorld: number) 
 
 export function getNewNotesForLevelIndex(levelIndex: number) {
 	return introducedByLevel[levelIndex] ?? []
+}
+
+// The cover a single level sits under — the menu hero and the result screen show
+// the art of the chapter the player is in, not a generic one.
+export function chapterCoverForLevelIndex(levelIndex: number): ChapterCoverId {
+	const chapter = Math.floor(Math.max(0, levelIndex) / WORLD_SIZE)
+	return CAMPAIGN_WORLDS[Math.min(chapter, CAMPAIGN_WORLDS.length - 1)]?.coverId ?? CHAPTER_COVERS[0]
 }

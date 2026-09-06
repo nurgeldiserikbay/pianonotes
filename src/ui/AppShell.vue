@@ -10,6 +10,7 @@ import { useAppStore } from '@/ui/stores/appStore'
 import { assetUrl } from '@/utils/assetUrl'
 import { useDropInArt } from '@/ui/useDropInArt'
 import { MELODIES_BY_DIFFICULTY, getMelodyMood } from '@/modes/melodies'
+import { chapterCoverForLevelIndex } from '@/modes/campaignWorlds'
 
 import IconMusic from '@/assets/icons/music.svg'
 import IconSound from '@/assets/icons/sound.svg'
@@ -39,7 +40,7 @@ import ComposerStage from './components/ComposerStage.vue'
 const appStore = useAppStore()
 
 // The drawn wordmark, if it has been dropped in; the styled heading otherwise.
-const logo = useDropInArt(() => assetUrl('/img/logo-piano-notes.png'))
+const logo = useDropInArt(() => assetUrl('/img/redesign-v2/wordmark.webp'))
 
 // The library is generated, not typed out, so the button that offers to browse
 // it counts the list rather than repeating a number that would quietly go stale
@@ -219,6 +220,22 @@ const continueMood = computed(() =>
 	appStore.continueLevel ? getMelodyMood(appStore.continueLevel.id) : 'calm'
 )
 
+// The hero and the result card show the art of the chapter the player is in, so
+// the picture advances with the climb instead of being decoration that never
+// changes. Only campaign levels sit in a chapter; anything else falls back to
+// the mood, which MoodScene resolves on its own.
+const continueCover = computed(() =>
+	appStore.continueLevel ? chapterCoverForLevelIndex(appStore.continueLevel.index ?? 0) : undefined
+)
+
+const resultCover = computed(() => {
+	if (appStore.lastResult?.modeId !== 'campaign') return undefined
+	const levelId = appStore.lastResult?.levelId
+	if (!levelId) return undefined
+	const index = MELODIES_BY_DIFFICULTY.findIndex((melody) => melody.id === levelId)
+	return index < 0 ? undefined : chapterCoverForLevelIndex(index)
+})
+
 // Three ways a round can end, and the player has to be told which one happened.
 const resultOutcome = computed(() => {
 	const result = appStore.lastResult
@@ -345,7 +362,7 @@ const isNewBestAccuracy = computed(() => {
 				     than it on purpose. -->
 				<div class="menu-play">
 					<button class="hero-card mode-campaign" @click="appStore.startContinue">
-						<MoodScene :mood="continueMood" class="hero-art" />
+						<MoodScene :mood="continueMood" :cover="continueCover" class="hero-art" />
 						<span class="hero-veil" />
 
 						<span class="hero-badge">
@@ -437,7 +454,7 @@ const isNewBestAccuracy = computed(() => {
 					:class="DIFFICULTY_MODE[world.difficulty]"
 				>
 					<header class="world-head">
-						<MoodScene :mood="world.themeId" class="world-scene" />
+						<MoodScene :mood="world.themeId" :cover="world.coverId" class="world-scene" />
 						<div class="world-text">
 							<strong class="world-title">{{ world.title }}</strong>
 							<span class="world-concept">{{ world.concept }}</span>
@@ -675,11 +692,11 @@ const isNewBestAccuracy = computed(() => {
 
 			<section v-else-if="screen === 'result'" class="screen stack">
 				<div class="result-card">
-					<MoodScene :mood="resultMood" class="result-scene" />
+					<MoodScene :mood="resultMood" :cover="resultCover" class="result-scene" />
 					<MascotSlot
 						class="result-mascot"
 						size="5.5rem"
-						:variant="(appStore.lastResult?.stars ?? 0) >= 3 ? 'cheer' : 'thinking'"
+						:variant="(appStore.lastResult?.stars ?? 0) >= 3 ? 'cheer' : 'retry'"
 					/>
 					<div class="result-header">
 						<StarRow
@@ -1270,7 +1287,10 @@ const isNewBestAccuracy = computed(() => {
 }
 
 .menu-logo-art {
-	height: 2.4rem;
+	/* The HUD row is 48px, set by the player chip. Now that the wordmark is drawn
+	   rather than typed it takes the height that leaves, instead of the height the
+	   old text heading happened to need — bigger, at no cost to the layout. */
+	height: 2.9rem;
 	width: auto;
 	display: block;
 	filter: drop-shadow(0 4px 10px rgba(10, 4, 32, 0.55));

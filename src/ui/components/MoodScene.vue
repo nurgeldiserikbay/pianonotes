@@ -17,13 +17,27 @@ import { useDropInArt } from '@/ui/useDropInArt'
 // scatter of stars. That layering is what makes a 320×120 strip read as a place
 // rather than as a coloured rectangle — the flat two-hill version before this
 // looked like a placeholder next to the rest of the neon UI.
-const props = defineProps<{ mood: MelodyMood }>()
+const props = defineProps<{ mood: MelodyMood; cover?: string }>()
 
-// A painted cover, if one has been dropped into public/img/moods/. The drawn
-// scene below is what shows until then — and what shows again if the file is
-// ever removed.
+// Which painted cover this scene shows. Campaign screens know the chapter and
+// pass its cover straight in; everywhere else — By Ear, the listening card, a
+// non-campaign result — there is no chapter, so the mood picks the nearest of
+// the six. The drawn SVG below is what shows if the file is missing, and what
+// shows again if it is ever removed.
+const MOOD_COVER: Record<MelodyMood, string> = {
+	calm: '01-first-tunes',
+	bright: '02-nursery-favourites',
+	tender: '03-songs-you-know',
+	playful: '04-rhythm-garden',
+	wistful: '05-starlight-stage',
+	solemn: '06-grand-finale',
+}
+
 const mood = toRef(props, 'mood')
-const cover = useDropInArt(computed(() => assetUrl(`/img/moods/${mood.value}.png`)))
+const coverId = computed(() => props.cover ?? MOOD_COVER[mood.value] ?? MOOD_COVER.calm)
+const cover = useDropInArt(
+	computed(() => assetUrl(`/img/redesign-v2/chapters/${coverId.value}.webp`))
+)
 
 // Deterministic star field: the same seed every render, so a card does not
 // twinkle differently each time Vue re-draws it.

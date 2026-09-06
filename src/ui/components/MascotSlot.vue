@@ -2,32 +2,38 @@
 // Every screen shows the mascot through this one component, so a new pose set
 // only touches this file.
 //
-// Poses are looked up in /img/mascot/ first — that is where hand-drawn artwork
-// is meant to land, one PNG per pose, transparent, square. Anything missing
-// falls back to the render the app already ships, so dropping in one file at a
-// time works and a half-finished set never breaks a screen.
+// Callers ask for a *situation* — the player is being taught, is thinking, has
+// won, has to try again — and this file decides which drawing that is. That way
+// a screen never names a file, and a redrawn set with different names is one
+// map away from being wired.
 import { computed, toRef } from 'vue'
 
 import { assetUrl } from '@/utils/assetUrl'
 import { useDropInArt } from '@/ui/useDropInArt'
 
-const props = withDefaults(
-	defineProps<{ size?: string; variant?: 'idle' | 'happy' | 'cheer' | 'thinking' | 'wink' }>(),
-	{ size: '6rem', variant: 'idle' }
-)
+export type MascotMood = 'idle' | 'teaching' | 'thinking' | 'cheer' | 'retry'
 
-// The renders the app already ships stand in for any pose not drawn yet.
-const FALLBACK: Record<string, string> = {
-	idle: '/img/stitch/mascot-cat-wizard.png',
-	happy: '/img/stitch/mascot-cat-stage.png',
-	cheer: '/img/stitch/mascot-cat-stage.png',
-	thinking: '/img/stitch/mascot-cat-wizard.png',
-	wink: '/img/stitch/mascot-cat-drummer.png',
+const props = withDefaults(defineProps<{ size?: string; variant?: MascotMood }>(), {
+	size: '6rem',
+	variant: 'idle',
+})
+
+// The drawn set, in the order it was delivered. Anything not drawn yet falls
+// back to the nearest pose that was, so a half-finished set never breaks a
+// screen and never shows a gap.
+const NEAREST: Record<MascotMood, MascotMood> = {
+	idle: 'idle',
+	teaching: 'idle',
+	thinking: 'idle',
+	cheer: 'idle',
+	retry: 'idle',
 }
 
 const variant = toRef(props, 'variant')
-const art = useDropInArt(computed(() => assetUrl(`/img/mascot/cat-${variant.value}.png`)))
-const src = computed(() => art.src.value ?? assetUrl(FALLBACK[variant.value] ?? FALLBACK.idle))
+const art = useDropInArt(computed(() => assetUrl(`/img/redesign-v2/mascot/cat-${variant.value}.webp`)))
+const src = computed(
+	() => art.src.value ?? assetUrl(`/img/redesign-v2/mascot/cat-${NEAREST[variant.value]}.webp`)
+)
 </script>
 
 <template>
@@ -47,6 +53,8 @@ const src = computed(() => art.src.value ?? assetUrl(FALLBACK[variant.value] ?? 
 .mascot-art {
 	width: 100%;
 	height: 100%;
+	// contain, never cover: an ear, a tail or the baton cropped off is worse
+	// than a little empty space around the character.
 	object-fit: contain;
 	pointer-events: none;
 	user-select: none;

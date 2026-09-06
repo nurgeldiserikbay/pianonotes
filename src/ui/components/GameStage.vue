@@ -18,6 +18,7 @@ import IconSparkle from '@/assets/decor/sparkle.svg'
 
 import IconChip from './IconChip.vue'
 import ListeningCard from './ListeningCard.vue'
+import MascotSlot from './MascotSlot.vue'
 import PianoKeyboard from './PianoKeyboard.vue'
 
 const props = defineProps<{
@@ -287,6 +288,7 @@ onBeforeUnmount(() => {
 		     rather than after it. Its button also starts the preview. -->
 		<div v-if="showRulesCard" class="rotate-overlay">
 			<div class="rotate-card rules-card">
+				<MascotSlot class="rules-mascot" size="4.4rem" variant="teaching" />
 				<span class="rotate-title">How to play</span>
 				<ul class="rules-list">
 					<li>Play the notes left to right, as written.</li>
@@ -587,6 +589,13 @@ onBeforeUnmount(() => {
 
 .rules-card {
 	max-width: 26rem;
+}
+
+/* The one screen that is purely explanation is the one place the mascot can
+   teach without ever sitting over notation. */
+.rules-mascot {
+	justify-self: center;
+	margin-bottom: -0.35rem;
 }
 
 .rules-list {

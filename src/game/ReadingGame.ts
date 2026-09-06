@@ -50,6 +50,10 @@ const PARTICLE_POOL = 64
 const PARTICLES_PER_HIT = 8
 const PARTICLE_LIFE_MS = 620
 // How long a played note takes to lift off the staff and fade out.
+// How faint a note goes once it has been played and settled: present enough to
+// read as "done", quiet enough that it never competes with what comes next.
+const PLAYED_ALPHA = 0.26
+
 const NOTE_RESOLVE_MS = 200
 const NOTE_REJECT_MS = 260
 
@@ -67,6 +71,10 @@ interface NoteView {
 	resolve?: { startMs: number; type: 'hit' | 'wrong'; originX: number; originY: number }
 	// Finished animating: never touched again this round.
 	done?: boolean
+	// Played correctly and settled back onto the staff, where it stays as a quiet
+	// mark. It still gets laid out every frame — the line it belongs to can still
+	// scroll or re-flow underneath it — it is just drawn faint.
+	played?: boolean
 }
 
 interface Particle {
@@ -594,7 +602,14 @@ export class ReadingGame {
 			}
 
 			view.container.scale.set(1)
-			view.container.alpha = lineIndex === firstLine ? 0.72 : 0.34
+			if (view.played) {
+				view.container.alpha = PLAYED_ALPHA
+				view.glow.visible = false
+				return
+			}
+			// What is still to come is quieter than it was, so that the note being
+			// asked for is unmistakably the loudest thing on the staff.
+			view.container.alpha = lineIndex === firstLine ? 0.58 : 0.28
 		})
 	}
 
@@ -606,10 +621,18 @@ export class ReadingGame {
 		const progress = Math.max(0, Math.min(1, (elapsedMs - resolve.startMs) / duration))
 
 		if (progress >= 1) {
-			// Done: hide it and drop the marker so this view is skipped from now on.
-			// It used to keep running this method for the rest of the round.
-			view.container.visible = false
 			view.resolve = undefined
+			if (resolve.type === 'hit') {
+				// A played note stays on the staff as a faint mark rather than
+				// vanishing: what has already been performed is exactly what tells a
+				// reader where they are in the line, and an emptying staff takes that
+				// away just as the line gets long enough to need it.
+				view.played = true
+				view.container.scale.set(1)
+				return
+			}
+			// A wrong note has nothing to leave behind, so it still goes.
+			view.container.visible = false
 			view.done = true
 			return
 		}
@@ -622,8 +645,13 @@ export class ReadingGame {
 			// out as it is performed. Driven by progress, not by a per-frame step:
 			// the old version moved 1.4px every frame, so the lift was twice as fast
 			// at 60fps as at 30 and never matched the fade.
-			view.container.y = resolve.originY - progress * 26
-			view.container.scale.set(1 + progress * 0.28)
+			// Lift, then settle: the note rises and swells at the moment it is
+			// played and comes back to its own place on the staff, dimming to the
+			// tone it keeps for the rest of the round.
+			const lift = Math.sin(progress * Math.PI)
+			view.container.y = resolve.originY - lift * 14
+			view.container.scale.set(1 + lift * 0.22)
+			view.container.alpha = 1 - progress * (1 - PLAYED_ALPHA)
 			return
 		}
 
