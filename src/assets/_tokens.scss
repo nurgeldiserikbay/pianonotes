@@ -2,9 +2,10 @@
 // spacing, radius, elevation and motion. Screens compose these; they never
 // declare one-off hex codes, paddings or durations of their own.
 //
-// Direction: a neon night. Deep violet ground, panels a shade lighter with a
-// visible rim, amber as the one call-to-action colour, and coloured light that
-// actually spills — the glow is part of the identity, not decoration bolted on.
+// Direction: a calm musical night. Deep navy ground, indigo panels, amber as
+// the one call-to-action colour, and restrained coloured feedback. The static
+// interface stays quiet; stronger colour belongs to presses, correct notes,
+// streaks and completion moments.
 // The staff itself stays white paper: a clef and a sharp sign are small ink
 // glyphs and read best that way, and the white sheet against the violet is what
 // makes the play screen look lit.
@@ -22,25 +23,25 @@
 	// sheet glare. Three steps only — the ground, the well behind panels, and the
 	// panel itself — so depth comes from borders and offsets rather than from a
 	// dozen barely-different greys.
-	--bg-base: #1a1150;
-	--bg-deep: #0f0930;
+	--bg-base: #121936;
+	--bg-deep: #090d22;
 	// A third step, for the panel inside a panel (stat tiles, list rows).
-	--bg-sunken: #150d40;
+	--bg-sunken: #10162f;
 	--surface-1: rgba(255, 255, 255, 0.06);
 	--surface-2: rgba(255, 255, 255, 0.11);
-	--surface-raised: #241a63;
+	--surface-raised: #20294f;
 	// A panel is never one colour: it lights from the top edge down, the way a
 	// moulded surface does. These two are the ends of that ramp.
-	--panel-top: #2e2278;
-	--panel-bottom: #1d1450;
+	--panel-top: #26315f;
+	--panel-bottom: #1a2348;
 	// The same ramp one step brighter, for a panel that has to sit *on* another.
-	--panel-top-lifted: #382a8e;
-	--panel-bottom-lifted: #241a63;
+	--panel-top-lifted: #303c70;
+	--panel-bottom-lifted: #222c57;
 
 	// Borders are visible on purpose. Every panel, chip and key has one.
-	--border-soft: rgba(168, 140, 255, 0.16);
-	--border: rgba(178, 152, 255, 0.26);
-	--border-strong: rgba(196, 172, 255, 0.5);
+	--border-soft: rgba(206, 216, 255, 0.12);
+	--border: rgba(206, 216, 255, 0.2);
+	--border-strong: rgba(220, 228, 255, 0.36);
 
 	// ── Text ────────────────────────────────────────────────────────────────
 	// Three tiers only. Anything below --text-3 fails contrast on this ground.
@@ -143,8 +144,8 @@
 	--shadow-float: 0 10px 0 rgba(10, 4, 32, 0.6), 0 26px 52px rgba(6, 2, 22, 0.6);
 	// Coloured light. `--glow-accent` is the amber bloom under the primary
 	// button; `--glow-mode` reads whatever accent the surrounding mode set.
-	--glow-accent: 0 0 1.6rem color-mix(in srgb, var(--accent) 45%, transparent);
-	--glow-mode: 0 0 1.4rem color-mix(in srgb, var(--accent-1, var(--accent)) 40%, transparent);
+	--glow-accent: 0 0 1.25rem color-mix(in srgb, var(--accent) 30%, transparent);
+	--glow-mode: 0 0 1rem color-mix(in srgb, var(--accent-1, var(--accent)) 24%, transparent);
 	// A one-pixel highlight along the top of a panel: the cheap trick that makes
 	// a flat fill look moulded rather than printed.
 	--sheen: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
