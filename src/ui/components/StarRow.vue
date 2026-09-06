@@ -1,6 +1,8 @@
 <script setup lang="ts">
-// Filled stars use the glossy 3D gold-star render; empty slots reuse the same
-// image desaturated + dimmed so the row keeps a consistent silhouette.
+// Stars are drawn from the icon set rather than a bitmap render: they stay crisp
+// at any size, tint from tokens, and cost nothing to download.
+import IconStar from '@/assets/icons/star.svg'
+
 withDefaults(defineProps<{ count: number; max?: number }>(), {
 	max: 3,
 })
@@ -8,14 +10,11 @@ withDefaults(defineProps<{ count: number; max?: number }>(), {
 
 <template>
 	<div class="star-row">
-		<img
+		<IconStar
 			v-for="n in max"
 			:key="n"
 			class="star"
 			:class="{ filled: n <= count }"
-			src="/img/stitch/star-gold.png"
-			alt=""
-			draggable="false"
 		/>
 	</div>
 </template>
@@ -27,16 +26,17 @@ withDefaults(defineProps<{ count: number; max?: number }>(), {
 }
 
 .star {
-	width: 1.25rem;
-	height: 1.25rem;
-	object-fit: contain;
-	// Empty slot: keep the shape, drain the color and dim it.
-	filter: grayscale(1) brightness(0.5) opacity(0.5);
-	transition: filter 160ms ease, transform 160ms ease;
+	width: 1.1rem;
+	height: 1.1rem;
+	// Empty slot: same silhouette, drained of color so the row reads as progress.
+	color: var(--text-3);
+	transition: color var(--dur-2) var(--ease), transform var(--dur-2) var(--ease),
+		filter var(--dur-2) var(--ease);
 }
 
 .star.filled {
-	filter: drop-shadow(0 0 0.35rem rgba(255, 200, 70, 0.7));
-	transform: scale(1.05);
+	color: var(--mode-records);
+	filter: drop-shadow(0 0 0.3rem color-mix(in srgb, var(--mode-records) 55%, transparent));
+	transform: scale(1.06);
 }
 </style>

@@ -3,17 +3,21 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import type { GameplayResult, HudSnapshot, SessionConfig, SettingsState } from '@/core/models'
 import { BACKGROUND_PRESETS } from '@/modes/modeDefinitions'
-import { RhythmGame } from '@/game/RhythmGame'
-import { formatTime } from '@/features/scoring'
+import { ReadingGame } from '@/game/ReadingGame'
+import { createEmptyHud } from '@/features/scoring'
+import { formatCountdown } from '@/features/reading'
 import { getLaneLabel } from '@/entities/piano'
+import { audioService } from '@/services/audioService'
 
 import IconCombo from '@/assets/icons/combo.svg'
 import IconHeart from '@/assets/icons/heart.svg'
 import IconScore from '@/assets/icons/score.svg'
 import IconTimer from '@/assets/icons/timer.svg'
+import IconGlow from '@/assets/icons/glow.svg'
 import IconSparkle from '@/assets/decor/sparkle.svg'
 
 import IconChip from './IconChip.vue'
+import ListeningCard from './ListeningCard.vue'
 import PianoKeyboard from './PianoKeyboard.vue'
 
 const props = defineProps<{
@@ -28,30 +32,40 @@ const emit = defineEmits<{
 }>()
 
 const stageRef = ref<HTMLElement | null>(null)
-const engine = ref<RhythmGame | null>(null)
+const engine = ref<ReadingGame | null>(null)
 const activeKeys = ref<string[]>([])
-const hud = ref<HudSnapshot>({
-	score: 0,
-	combo: 0,
-	lives: props.session.lives,
-	accuracy: 100,
-	elapsedSec: 0,
-	maxCombo: 0,
-	misses: 0,
-	perfect: 0,
-	great: 0,
-	good: 0,
-	currentSpeedLabel: props.session.modeId === 'time' ? 'Manual tempo' : `${props.session.bpm} BPM`,
-	notesCompleted: 0,
-	streak: 0,
-	modeId: props.session.modeId,
-})
+const hud = ref<HudSnapshot>(createEmptyHud(props.session.modeId, props.session.lives))
 const flash = ref({ label: '', color: '#ffffff', visible: false })
 const isLandscape = ref(window.innerWidth > window.innerHeight)
 
 // First-time-note tutorial: pauses gameplay until the player acknowledges the new
 // notes this level/world introduces (see appStore.buildCampaignSession).
 const showNewNotesToast = ref(Boolean(props.session.newNotes?.length))
+
+// The rules card is a one-off, remembered outside the game snapshot so that
+// "Reset Stored Progress" doesn't re-teach a player who already knows.
+const RULES_SEEN_KEY = 'piano-notes-rules-seen'
+const showRulesCard = ref(false)
+
+try {
+	showRulesCard.value = window.localStorage.getItem(RULES_SEEN_KEY) !== '1'
+} catch {
+	showRulesCard.value = false
+}
+
+function dismissRules() {
+	showRulesCard.value = false
+	try {
+		window.localStorage.setItem(RULES_SEEN_KEY, '1')
+	} catch {
+		// Private mode / quota: showing the card again is harmless.
+	}
+	// On a first launch this tap is the only gesture the page has had, so it also
+	// carries the preview: otherwise a new player taps "Let's play", then taps
+	// "Listen", and only then plays. One card, one tap, then the melody.
+	if (previewNeedsTap.value) listenNow()
+	engine.value?.setPaused(shouldPauseEngine())
+}
 const newNoteLabels = computed(() =>
 	(props.session.newNotes ?? [])
 		.map((laneId) => getLaneLabel(laneId, props.settings.noteNamingSystem))
@@ -60,23 +74,93 @@ const newNoteLabels = computed(() =>
 
 const theme = computed(() => BACKGROUND_PRESETS[props.session.themeId])
 
-// Note Trainer reuses the 'time' engine path (see appStore.buildTrainerSession), so it's
-// told apart by title, not modeId, when picking a HUD accent color.
 const modeAccent = computed(() => {
-	if (props.session.modeTitle === 'Note Trainer') return 'var(--mode-trainer)'
-	if (props.session.modeId === 'campaign') return 'var(--mode-campaign)'
-	if (props.session.modeId === 'endless') return 'var(--mode-endless)'
-	return 'var(--mode-time)'
+	if (props.session.modeId === 'sprint') return 'var(--mode-endless)'
+	return 'var(--mode-campaign)'
 })
 
+// Same character count for all three states: a label that grows and shrinks
+// pushes every chip beside it. Shorter wording is also plainer for a beginner
+// than "ahead of tempo".
+const tempoCopy = computed(() => {
+	if (hud.value.tempoState === 'behind') return 'Too slow'
+	if (hud.value.tempoState === 'ahead') return 'Too fast'
+	return 'On tempo'
+})
+
+const tempoColor = computed(() => {
+	if (hud.value.tempoState === 'on') return 'var(--good)'
+	return 'var(--warn)'
+})
+
+// The countdown is the pressure in this mode, so it turns red before it runs out
+// rather than silently expiring.
+const timeCritical = computed(() => hud.value.remainingSec <= 10)
+
+// Before the first attempt at a melody the player hears it played properly. The
+// mode is self-paced, so during play the tune only sounds as musical as the
+// player's own timing — the preview is the only moment they hear what they are
+// aiming for. Practice has no melody to preview.
+// Never in Sprint: a run is one continuous attempt, and a card between every
+// melody would stop it four times a minute — besides handing the player the
+// tune they are supposed to be reading at speed.
+const isPreviewing = ref(props.session.modeId !== 'sprint' && props.session.chart.length > 0)
+// The app can now open straight into a level, which means the preview may be the
+// first thing that happens on the page — before any touch. Browsers and the
+// Android WebView keep audio suspended until a gesture, so playing then would
+// show "Listen first" over silence. When that is the case the card waits for a
+// tap instead, and that tap is both the gesture and the request to listen.
+const previewNeedsTap = ref(false)
+let stopPreview: (() => void) | null = null
+let previewTimer: number | null = null
+
+function endPreview() {
+	if (!isPreviewing.value) return
+	stopPreview?.()
+	stopPreview = null
+	if (previewTimer !== null) {
+		window.clearTimeout(previewTimer)
+		previewTimer = null
+	}
+	isPreviewing.value = false
+	engine.value?.setPaused(shouldPauseEngine())
+}
+
+// The tap on "Listen" is itself the gesture the browser was waiting for, so the
+// audibility check is skipped here: checking it would fail every time, because
+// the context is only created and resumed once something asks to play.
+function listenNow() {
+	previewNeedsTap.value = false
+	startPreview(true)
+}
+
+function startPreview(fromGesture = false) {
+	if (!isPreviewing.value) return
+	if (!fromGesture && !audioService.isAudible()) {
+		previewNeedsTap.value = true
+		return
+	}
+	previewNeedsTap.value = false
+	const playback = audioService.playSequence(
+		props.session.chart.map((note) => ({ laneId: note.laneId, timeMs: note.timeMs }))
+	)
+	stopPreview = playback.stop
+	previewTimer = window.setTimeout(endPreview, playback.durationMs)
+}
+
 function shouldPauseEngine() {
-	return !isLandscape.value || showNewNotesToast.value
+	return (
+		!isLandscape.value ||
+		showNewNotesToast.value ||
+		showRulesCard.value ||
+		isPreviewing.value
+	)
 }
 
 async function mountEngine() {
 	if (!stageRef.value) return
 
-	engine.value = new RhythmGame(stageRef.value, props.session, props.settings, {
+	engine.value = new ReadingGame(stageRef.value, props.session, props.settings, {
 		onHud(snapshot) {
 			hud.value = snapshot
 		},
@@ -93,6 +177,7 @@ async function mountEngine() {
 
 	await engine.value.init()
 	engine.value.setPaused(shouldPauseEngine())
+	startPreview()
 }
 
 function handleResize() {
@@ -108,8 +193,8 @@ function dismissNewNotesToast() {
 	engine.value?.setPaused(shouldPauseEngine())
 }
 
-// There was previously no way to leave a gameplay session short of losing all lives
-// or finishing the chart — a real dead end in Note Trainer (999 lives, waits forever).
+// There was previously no way to leave a gameplay session short of losing all
+// lives or finishing the chart.
 function handleExit() {
 	emit('exit')
 }
@@ -141,6 +226,8 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
 	window.removeEventListener('resize', handleResize)
+	stopPreview?.()
+	if (previewTimer !== null) window.clearTimeout(previewTimer)
 	engine.value?.destroy()
 })
 </script>
@@ -149,11 +236,27 @@ onBeforeUnmount(() => {
 	<div class="gameplay-page" :style="{ '--theme-accent': theme.accent }">
 		<div class="hud-row" :class="{ 'left-handed': settings.leftHandedHud }">
 			<button class="exit-btn" aria-label="Exit" @click="handleExit">✕</button>
+			<!-- Every chip that carries a changing value has a reserved width, so the
+			     row is laid out once and the countdown can tick without nudging
+			     anything sideways. -->
 			<div class="hud-primary">
-				<IconChip :icon="IconScore" :color="modeAccent">{{ hud.score }}</IconChip>
-				<IconChip :icon="IconHeart" color="#ff6f91">{{ hud.lives >= 999 ? '∞' : hud.lives }}</IconChip>
-				<IconChip :icon="IconCombo" :color="modeAccent">×{{ hud.combo }}</IconChip>
-				<IconChip :icon="IconTimer" :color="modeAccent">{{ formatTime(hud.elapsedSec) }}</IconChip>
+				<IconChip
+					class="chip-time"
+					:icon="IconTimer"
+					:color="timeCritical ? 'var(--bad)' : modeAccent"
+				>
+					{{ formatCountdown(hud.remainingSec * 1000) }}
+				</IconChip>
+				<IconChip :icon="IconHeart" color="#ff6f91">{{ hud.lives }}</IconChip>
+				<IconChip class="chip-progress" :icon="IconScore" :color="modeAccent">
+					{{ hud.notesCompleted }}/{{ hud.notesTotal }}
+				</IconChip>
+				<IconChip class="chip-accuracy" :icon="IconCombo" :color="modeAccent">
+					{{ Math.round(hud.accuracy) }}%
+				</IconChip>
+				<IconChip class="chip-tempo" :icon="IconGlow" :color="tempoColor">
+					{{ tempoCopy }}
+				</IconChip>
 			</div>
 		</div>
 
@@ -172,13 +275,43 @@ onBeforeUnmount(() => {
 			<PianoKeyboard
 				:active-keys="activeKeys"
 				:naming-system="settings.noteNamingSystem"
-				:disabled="!isLandscape || showNewNotesToast"
+				:hint-key="session.showKeyHints && settings.keyHintsEnabled ? hud.nextLaneId : null"
+				:disabled="!isLandscape || showNewNotesToast || showRulesCard"
 				@keydown="onKeyDown"
 				@keyup="onKeyUp"
 			/>
 		</div>
 
-		<div v-if="!isLandscape" class="rotate-overlay">
+		<!-- Shown once, ever, and shown FIRST: the app can open straight into a
+		     level now, so the rules have to arrive before the melody preview
+		     rather than after it. Its button also starts the preview. -->
+		<div v-if="showRulesCard" class="rotate-overlay">
+			<div class="rotate-card rules-card">
+				<span class="rotate-title">How to play</span>
+				<ul class="rules-list">
+					<li>Play the notes left to right, as written.</li>
+					<li>A wrong key costs a life.</li>
+					<li>Finish before the clock runs out.</li>
+				</ul>
+				<button class="acknowledge-btn" @click="dismissRules">Let's play</button>
+			</div>
+		</div>
+
+		<!-- The same card By Ear opens with: hear the melody once, or skip it and
+		     start playing. Skipping stops the playback rather than leaving it
+		     sounding under the staff. -->
+		<ListeningCard
+			v-else-if="isPreviewing"
+			:mood="session.themeId"
+			:title="session.levelTitle || session.modeTitle"
+			:copy="previewNeedsTap ? 'Tap to hear it, then play it back.' : 'Listen first — then play it back.'"
+			:needs-tap="previewNeedsTap"
+			:skip-label="previewNeedsTap ? 'Play now' : 'Skip'"
+			@listen="listenNow"
+			@skip="endPreview"
+		/>
+
+		<div v-else-if="!isLandscape" class="rotate-overlay">
 			<div class="rotate-card">
 				<span class="rotate-title">↻ Rotate to play</span>
 			</div>
@@ -194,25 +327,29 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss">
+@use '../../assets/mixins' as *;
+
 .gameplay-page {
 	position: relative;
 	display: grid;
 	grid-template-rows: auto 1fr auto;
-	height: 100dvh;
+	height: 100%;
+	min-height: 0;
 	padding:
 		max(env(safe-area-inset-top), 0.55rem)
 		max(env(safe-area-inset-right), 0.55rem)
 		max(env(safe-area-inset-bottom), 0.55rem)
 		max(env(safe-area-inset-left), 0.55rem);
-	gap: 0.5rem;
-	/* Same neon-staff scene as the rest of the app, but heavily darkened so it
-	   never competes with the falling notes on the Pixi stage. */
+	gap: var(--space-2);
+	/* The darkest surface in the app: during play nothing may compete with the
+	   notes and the hit line. Drawn in CSS, like every other background. */
 	background:
-		radial-gradient(circle at 16% 4%, rgba(255, 255, 255, 0.1), transparent 28%),
-		radial-gradient(circle at 82% 8%, rgba(255, 164, 206, 0.12), transparent 24%),
-		linear-gradient(160deg, rgba(7, 9, 20, 0.88), rgba(7, 9, 20, 0.94)),
-		var(--asset-bg-scene, none) center / cover no-repeat,
-		#070914;
+		radial-gradient(
+			ellipse 60% 40% at 50% -10%,
+			color-mix(in srgb, var(--theme-accent) 10%, transparent),
+			transparent 70%
+		),
+		linear-gradient(180deg, #1a2148 0%, var(--bg-deep) 100%);
 }
 
 .hud-row {
@@ -243,14 +380,12 @@ onBeforeUnmount(() => {
 	display: grid;
 	place-items: center;
 	border-radius: var(--radius-m);
-	border: 1px solid rgba(255, 255, 255, 0.16);
-	background: linear-gradient(155deg, rgba(24, 28, 56, 0.68), rgba(8, 10, 22, 0.5));
-	color: rgba(255, 255, 255, 0.92);
-	font-size: 0.9rem;
-	font-weight: 800;
+	background: var(--surface-2);
+	color: var(--text-2);
+	font-size: var(--text-md);
+	font-weight: var(--weight-black);
 	line-height: 1;
 	cursor: pointer;
-	backdrop-filter: blur(16px);
 }
 
 /* Pills size to their own content instead of stretching into 4 equal grid
@@ -267,17 +402,36 @@ onBeforeUnmount(() => {
 /* IconChip supplies its own base look; the rules below only add HUD-specific
    sizing/breakpoint overrides on top of it (see the media queries further down). */
 
+/* Widths reserved for the widest value each chip can ever show. Without this the
+   countdown re-flows the row ten times a second, and the progress chip jumps
+   again when it reaches double digits. */
+.hud-primary :deep(.chip-time) {
+	min-width: 6.4rem;
+}
+
+.hud-primary :deep(.chip-progress) {
+	min-width: 5.6rem;
+}
+
+.hud-primary :deep(.chip-accuracy) {
+	min-width: 5rem;
+}
+
+.hud-primary :deep(.chip-tempo) {
+	min-width: 8.2rem;
+}
+
 .stage {
 	position: relative;
 	min-height: 0;
-	border-radius: 2rem;
+	border-radius: var(--radius-l);
 	overflow: hidden;
-	background: linear-gradient(180deg, rgba(18, 22, 44, 0.58), rgba(9, 12, 28, 0.42));
-	border: 1px solid rgba(255, 255, 255, 0.14);
-	box-shadow:
-		inset 0 1px 0 rgba(255, 255, 255, 0.06),
-		0 26px 80px rgba(0, 0, 0, 0.24),
-		0 0 2.4rem color-mix(in srgb, var(--theme-accent) 14%, transparent);
+	// The sheet of music, lit against the dark cabinet: white paper, a hard edge
+	// and a solid drop so it reads as a physical sheet laid on the machine rather
+	// than as the page the whole app is printed on.
+	background: #ffffff;
+	border: 2px solid var(--border-strong);
+	box-shadow: var(--shadow-3);
 }
 
 .stage-canvas {
@@ -337,22 +491,39 @@ onBeforeUnmount(() => {
 	}
 }
 
+/* Judgement verdict — the loudest moment in the UI by design (the "20%"), so it
+   pops in rather than fading, and carries the colour of the verdict itself. */
 .flash {
 	position: absolute;
 	left: 50%;
-	top: 26%;
+	top: 24%;
 	transform: translateX(-50%);
-	padding: 0.8rem 1.25rem;
-	border-radius: 999px;
-	background: linear-gradient(135deg, rgba(17, 20, 38, 0.8), rgba(8, 10, 22, 0.56));
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	backdrop-filter: blur(14px);
-	font-size: 1.25rem;
-	font-weight: 800;
-	letter-spacing: 0.06em;
+	padding: 0.7rem 1.2rem;
+	border-radius: var(--radius-round);
+	background: var(--surface-raised);
+	box-shadow: var(--shadow-float);
+	font-size: var(--text-xl);
+	font-weight: var(--weight-black);
+	letter-spacing: var(--tracking-caps);
 	text-transform: uppercase;
-	box-shadow: 0 0 2rem color-mix(in srgb, var(--theme-accent) 60%, transparent);
+	box-shadow: 0 0 2rem color-mix(in srgb, currentcolor 45%, transparent);
 	z-index: 4;
+	animation: flash-pop var(--dur-3) var(--ease);
+}
+
+@keyframes flash-pop {
+	0% {
+		transform: translateX(-50%) scale(0.82);
+		opacity: 0;
+	}
+	55% {
+		transform: translateX(-50%) scale(1.06);
+		opacity: 1;
+	}
+	100% {
+		transform: translateX(-50%) scale(1);
+		opacity: 1;
+	}
 }
 
 .keyboard-area {
@@ -365,50 +536,74 @@ onBeforeUnmount(() => {
 	inset: 0;
 	display: grid;
 	place-items: center;
-	background: rgba(4, 7, 16, 0.74);
+	background: rgba(23, 32, 51, 0.55);
 	z-index: 8;
 }
 
 .rotate-card {
+	max-height: 100%;
+	overflow-y: auto;
+	@include floating;
 	max-width: 22rem;
-	padding: 1.4rem 1.6rem;
-	border-radius: var(--radius-l);
-	background: linear-gradient(160deg, rgba(20, 24, 48, 0.96), rgba(11, 14, 30, 0.9));
-	border: 1px solid rgba(255, 255, 255, 0.14);
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), var(--shadow-2);
-	backdrop-filter: blur(18px);
+	padding: var(--space-5) var(--space-5);
 	text-align: center;
-	color: rgba(237, 242, 255, 0.9);
+	color: var(--text-1);
 }
 
-/* Treble-clef mark above the overlay title, tying the tutorial/rotate cards into
-   the same brand language as the menu. */
+/* A ♪ glyph above the overlay title — same brand language as the menu, drawn as
+   type rather than as an image. */
 .rotate-card::before {
-	content: '';
+	content: '♪';
 	display: block;
-	width: 2.6rem;
-	height: 2.6rem;
-	margin: 0 auto 0.6rem;
-	background: var(--asset-treble) center / contain no-repeat;
-	filter: var(--art-shadow);
+	margin-bottom: var(--space-2);
+	font-size: 1.8rem;
+	line-height: 1;
+	color: var(--theme-accent);
 }
 
 .rotate-title {
 	display: block;
-	margin-bottom: 0.5rem;
-	font-size: 1.05rem;
-	font-weight: 800;
+	margin-bottom: var(--space-2);
+	font-size: var(--text-lg);
+	font-weight: var(--weight-black);
+}
+
+.rules-card {
+	max-width: 26rem;
+}
+
+.rules-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	display: grid;
+	gap: var(--space-2);
+	text-align: left;
+	font-size: var(--text-md);
+	color: var(--text-2);
+}
+
+.rules-list li {
+	padding-left: 1.1rem;
+	position: relative;
+}
+
+.rules-list li::before {
+	content: '♪';
+	position: absolute;
+	left: 0;
+	color: var(--theme-accent);
 }
 
 .acknowledge-btn {
-	margin-top: 0.9rem;
+	margin-top: var(--space-3);
 	padding: 0.65rem 1.4rem;
 	border: none;
-	border-radius: 999px;
-	background: linear-gradient(135deg, #ffd86f 0%, #ff9dd8 45%, var(--theme-accent) 100%);
-	color: #07111f;
-	font-weight: 800;
-	font-size: 0.9rem;
+	border-radius: var(--radius-round);
+	background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+	color: var(--text-on-accent);
+	font-weight: var(--weight-black);
+	font-size: var(--text-md);
 	cursor: pointer;
 }
 

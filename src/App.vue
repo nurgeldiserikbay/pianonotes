@@ -11,14 +11,18 @@ import AppShell from '@/ui/AppShell.vue'
 
 const appStore = useAppStore()
 
+// Both playing screens need the keyboard's full width. By Ear was left out when
+// it landed, so it asked the player to rotate instead of rotating for them.
+const LANDSCAPE_SCREENS = ['gameplay', 'echo']
+
 async function syncOrientation(screenName: string) {
 	try {
-		if (screenName === 'gameplay' && window.screen.orientation?.lock) {
+		if (LANDSCAPE_SCREENS.includes(screenName) && window.screen.orientation?.lock) {
 			await window.screen.orientation.lock('landscape')
 			return
 		}
 
-		if (screenName !== 'gameplay' && window.screen.orientation?.unlock) {
+		if (!LANDSCAPE_SCREENS.includes(screenName) && window.screen.orientation?.unlock) {
 			window.screen.orientation.unlock()
 		}
 	} catch {
@@ -28,7 +32,7 @@ async function syncOrientation(screenName: string) {
 
 onMounted(async () => {
 	// Safe on web: the service no-ops off native platforms.
-	void Admob.initialize()
+	void Admob.initialize().catch(() => {})
 
 	if (Capacitor.getPlatform() === 'android') {
 		await Fullscreen.activateImmersiveMode()

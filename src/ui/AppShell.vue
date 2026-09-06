@@ -2,25 +2,61 @@
 import { computed, ref } from 'vue'
 
 import { BACKGROUND_PRESETS } from '@/modes/modeDefinitions'
-import { formatAccuracy, formatTime } from '@/features/scoring'
+import { formatAccuracy } from '@/features/scoring'
+import { formatMs } from '@/features/reading'
 import { getLaneLabel } from '@/entities/piano'
+import { tuneDurationLabel } from '@/features/composer'
 import { useAppStore } from '@/ui/stores/appStore'
+import { getMelodyMood } from '@/modes/melodies'
 
-import IconLock from '@/assets/icons/lock.svg'
 import IconMusic from '@/assets/icons/music.svg'
 import IconSound from '@/assets/icons/sound.svg'
 import IconGlow from '@/assets/icons/glow.svg'
 import IconParticles from '@/assets/icons/particles.svg'
 import IconLayout from '@/assets/icons/layout.svg'
+import IconStar from '@/assets/icons/star.svg'
+import IconCampaign from '@/assets/icons/campaign.svg'
+import IconSprint from '@/assets/icons/trainer.svg'
+import IconStudio from '@/assets/icons/music.svg'
+import IconPlay from '@/assets/icons/play.svg'
+import IconEar from '@/assets/icons/ear.svg'
+import IconFlame from '@/assets/icons/flame.svg'
+import IconEcho from '@/assets/icons/endless.svg'
+import IconRecords from '@/assets/icons/records.svg'
+import IconSettings from '@/assets/icons/settings.svg'
 
+import MoodScene from '@/ui/components/MoodScene.vue'
 import StarRow from '@/ui/components/StarRow.vue'
 import GradeBadge from '@/ui/components/GradeBadge.vue'
 import MascotSlot from '@/ui/components/MascotSlot.vue'
 
 import GameStage from './components/GameStage.vue'
+import EchoStage from './components/EchoStage.vue'
+import ComposerStage from './components/ComposerStage.vue'
 
 const appStore = useAppStore()
+
+// Bound rather than written inline: a literal src in a template is resolved at
+// build time, and this file only exists once someone drops it into public/.
+const LOGO_SRC = '/img/logo-piano-notes.png'
+// Flipped off the moment the file 404s, which is the state the repo ships in.
+const logoOk = ref(true)
 const screen = computed(() => appStore.screen)
+
+// What a level node says about itself. Everything is playable, so the label is a
+// report: cleared with a time, or not played yet.
+function levelBestTime(level: { id: string }) {
+	const progress = appStore.campaignProgress[level.id]
+	return progress && (progress.bestStars ?? 0) > 0 ? progress.bestTimeMs : null
+}
+
+function levelNodeTitle(level: { id: string; title: string; bpm: number }) {
+	const progress = appStore.campaignProgress[level.id]
+	const stars = progress?.bestStars ?? 0
+	if (!stars) return `${level.title} · ${level.bpm} BPM · not played yet`
+	const best = progress?.bestTimeMs ? ` · best ${formatMs(progress.bestTimeMs)}` : ''
+	return `${level.title} · ${level.bpm} BPM · ${stars}/3 stars${best}`
+}
 
 function noteChipLabel(laneId: string) {
 	return getLaneLabel(laneId, appStore.settings.noteNamingSystem)
@@ -29,7 +65,7 @@ function noteChipLabel(laneId: string) {
 const heroTheme = computed(() =>
 	appStore.activeSession
 		? BACKGROUND_PRESETS[appStore.activeSession.themeId]
-		: BACKGROUND_PRESETS['purple-blue']
+		: BACKGROUND_PRESETS['calm']
 )
 
 const totalStars = computed(() =>
@@ -52,11 +88,77 @@ const hasAnyRecord = computed(() =>
 	Object.values(appStore.records).some((list) => list.length > 0)
 )
 
+// One tab per mode: every mode keeps records now that the unscored Note Trainer
+// is gone.
 const groupedRecords = computed(() => [
 	{ id: 'campaign', title: 'Campaign', items: appStore.records.campaign },
-	{ id: 'time', title: 'Time Mode', items: appStore.records.time },
-	{ id: 'endless', title: 'Endless', items: appStore.records.endless },
+	{ id: 'sprint', title: 'Sprint', items: appStore.records.sprint },
+	{ id: 'echo', title: 'By Ear', items: appStore.records.echo },
 ])
+
+// What the Continue card promises, in the player's terms: the level they are
+// actually on, not a mode name.
+const campaignStarted = computed(() =>
+	Object.values(appStore.campaignProgress).some((progress) => (progress?.bestStars ?? 0) > 0)
+)
+
+const continueLabel = computed(() => {
+	const level = appStore.continueLevel
+	if (!level) return 'Campaign'
+	// Levels are named melodies now, so the tune's own name is the useful label.
+	return `${(level.index ?? 0) + 1}. ${level.title}`
+})
+
+// Furthest sprint run so far, in melodies cleared — the number a new run is
+// trying to beat.
+const sprintBest = computed(() =>
+	appStore.records.sprint.reduce((best, record) => Math.max(best, record.score), 0)
+)
+
+// Best By Ear attempt so far, as its combined score — the number a new attempt
+// is trying to beat.
+const echoBest = computed(() =>
+	appStore.records.echo.reduce((best, record) => Math.max(best, record.score), 0)
+)
+
+const MASCOT_TIPS = [
+	'Find the note on the staff, then the same key below.',
+	'The line moves at your speed — take your time.',
+	'Three stars means fast and clean, in that order.',
+	'By Ear has no notes on screen: trust what you heard.',
+	'Written a tune of your own yet? My Tunes is waiting.',
+] as const
+
+const mascotTip = computed(() => MASCOT_TIPS[totalStars.value % MASCOT_TIPS.length])
+
+// The road ahead: the level the player is on and the four after it, so the hero
+// card shows progress as a path rather than as a sentence. Each carries its own
+// star count, which is what makes the row worth looking at.
+const roadAhead = computed(() => {
+	const level = appStore.continueLevel
+	const start = level?.index ?? 0
+	return appStore.levels.slice(start, start + 5).map((item) => ({
+		id: item.id,
+		number: (item.index ?? 0) + 1,
+		stars: appStore.campaignProgress[item.id]?.bestStars ?? 0,
+		current: item.id === level?.id,
+	}))
+})
+
+// Stars on the melody the hero card is about to start.
+const continueStars = computed(() => {
+	const level = appStore.continueLevel
+	if (!level) return 0
+	return appStore.campaignProgress[level.id]?.bestStars ?? 0
+})
+
+// Best time on the melody the Continue card is about to start — the number the
+// player is replaying against.
+const continueBestTime = computed(() => {
+	const level = appStore.continueLevel
+	if (!level) return null
+	return appStore.campaignProgress[level.id]?.bestTimeMs ?? null
+})
 
 // Records used to render as a 2-column grid of all three groups at once — cards in
 // the same grid row stretch to match the tallest one, so a mode with few records
@@ -68,13 +170,19 @@ const activeRecordGroup = computed(
 	() => groupedRecords.value.find((group) => group.id === selectedRecordsTab.value) ?? groupedRecords.value[0]
 )
 
-// Per-difficulty campaign-world identity: a glossy 3D note whose color signals
-// "this world is harder" (green → cyan → purple), reusing the same note assets
-// as the menu mode cards so the visual language stays consistent.
-const DIFFICULTY_NOTE: Record<string, string> = {
-	easy: 'var(--note-trainer)',
-	normal: 'var(--note-time)',
-	hard: 'var(--note-endless)',
+// Per-difficulty campaign-world identity, expressed as a mode accent class
+// (green → cyan → purple) rather than a separate illustration per world. The
+// class feeds --accent-1/--accent-2 to everything inside the world block.
+const DIFFICULTY_MODE: Record<string, string> = {
+	easy: 'mode-trainer',
+	normal: 'mode-time',
+	hard: 'mode-endless',
+}
+
+const DIFFICULTY_LABEL: Record<string, string> = {
+	easy: 'Easy',
+	normal: 'Normal',
+	hard: 'Hard',
 }
 
 // "NEW BEST!" tags — campaign is the only mode with explicit best-tracking
@@ -88,46 +196,93 @@ const resultProgress = computed(() => {
 	return appStore.campaignProgress[result.levelId] ?? null
 })
 
-const isNewBestScore = computed(() => {
+const isNewBestTime = computed(() => {
 	const result = appStore.lastResult
 	const progress = resultProgress.value
-	return !!result && !!progress && result.score > 0 && result.score === progress.bestScore
+	return !!result && !!progress && result.completed && result.timeMs === progress.bestTimeMs
+})
+
+const isEchoResult = computed(() => appStore.lastResult?.modeId === 'echo')
+const isSprintResult = computed(() => appStore.lastResult?.modeId === 'sprint')
+
+// Which scene belongs on the result card: the melody's own, or a neutral one.
+const resultMood = computed(() =>
+	appStore.lastResult?.levelId ? getMelodyMood(appStore.lastResult.levelId) : 'calm'
+)
+
+// The melody the Continue card is about to start — its scene previews the mood.
+const continueMood = computed(() =>
+	appStore.continueLevel ? getMelodyMood(appStore.continueLevel.id) : 'calm'
+)
+
+// Three ways a round can end, and the player has to be told which one happened.
+const resultOutcome = computed(() => {
+	const result = appStore.lastResult
+	if (!result) return { label: '', tone: 'neutral' }
+	if (result.modeId === 'sprint') {
+		return {
+			label: `Run over — ${result.score} cleared`,
+			tone: result.score > 0 ? 'good' : 'bad',
+		}
+	}
+	if (result.modeId === 'echo') {
+		if (result.accuracy >= 99) return { label: 'Every note right', tone: 'good' }
+		if (result.stars) return { label: `${result.notesCompleted}/${result.notesTotal} notes right`, tone: 'good' }
+		return { label: 'Not this one — listen again', tone: 'bad' }
+	}
+	if (result.completed) return { label: 'Melody complete', tone: 'good' }
+	if (result.timedOut) return { label: 'Out of time', tone: 'bad' }
+	return { label: 'Out of lives', tone: 'bad' }
 })
 
 const isNewBestAccuracy = computed(() => {
 	const result = appStore.lastResult
 	const progress = resultProgress.value
-	return !!result && !!progress && result.accuracy === progress.bestAccuracy
+	return (
+		!!result &&
+		!!progress &&
+		result.completed &&
+		result.accuracy > 0 &&
+		result.accuracy === progress.bestAccuracy
+	)
 })
 
-const isNewBestCombo = computed(() => {
-	const result = appStore.lastResult
-	const progress = resultProgress.value
-	return !!result && !!progress && result.maxCombo > 0 && result.maxCombo === progress.bestCombo
-})
 </script>
 
 <template>
 	<div
 		class="shell"
+		:class="{
+			'full-bleed': screen === 'gameplay' || screen === 'echo' || screen === 'composer',
+		}"
 		:style="{
 			'--hero-gradient': heroTheme.uiGradient,
 			'--hero-accent': heroTheme.accent,
 		}"
 	>
+		<!-- Background is drawn entirely in CSS (see .shell-bg): a dark ground, two
+		     soft light pools and a low-contrast staff. Only the menu adds drifting
+		     notes on top of it. -->
 		<div class="shell-bg">
-			<span v-if="screen === 'menu'" class="floating-note note-1">♪</span>
-			<span v-if="screen === 'menu'" class="floating-note note-2">♫</span>
-			<span v-if="screen === 'menu'" class="floating-note note-3">♩</span>
-			<span v-if="screen === 'menu'" class="floating-note note-4">♬</span>
+			<template v-if="screen === 'menu'">
+				<span class="floating-note note-1">♪</span>
+				<span class="floating-note note-2">♫</span>
+				<span class="floating-note note-3">♩</span>
+				<span class="floating-note note-4">♬</span>
+				<span class="floating-note note-5">♪</span>
+				<span class="floating-note note-6">♩</span>
+			</template>
 		</div>
 
-		<header v-if="screen !== 'gameplay' && screen !== 'menu'" class="topbar">
+		<header
+			v-if="screen !== 'gameplay' && screen !== 'echo' && screen !== 'composer' && screen !== 'menu'"
+			class="topbar"
+		>
 			<button class="ghost-btn" @click="appStore.back">
 				Back
 			</button>
 			<div class="brand">
-				<img class="brand-mark" src="/img/stitch/treble-clef.png" alt="" draggable="false" />
+				<span class="brand-mark"><IconMusic /></span>
 				<div class="brand-text">
 					<strong>Piano Notes</strong>
 				</div>
@@ -139,9 +294,7 @@ const isNewBestCombo = computed(() => {
 				<!-- Top HUD bar: player chip (left) · logo (center) · stars (right) -->
 				<header class="menu-hud">
 					<div class="player-chip">
-						<span class="player-avatar">
-							<img src="/img/stitch/mascot-cat-wizard.png" alt="" draggable="false" />
-						</span>
+						<span class="player-avatar"><IconMusic /></span>
 						<div class="player-info">
 							<strong class="player-name">Pianist</strong>
 							<span class="player-lv">Lv. {{ playerLevel }}</span>
@@ -149,93 +302,204 @@ const isNewBestCombo = computed(() => {
 						</div>
 					</div>
 
-					<h1 class="menu-logo">Piano Notes</h1>
+					<!-- Artwork if it exists, type if it does not: the wordmark is the
+					     one place a drawn logo beats anything CSS can do, and the app
+					     must not wait for it. -->
+					<h1 class="menu-logo">
+						<img
+							v-if="logoOk"
+							class="menu-logo-art"
+							:src="LOGO_SRC"
+							alt="Piano Notes"
+							@error="logoOk = false"
+						/>
+						<span v-else>Piano Notes</span>
+					</h1>
 
-					<div class="stars-chip">
-						<img src="/img/stitch/star-gold.png" alt="" class="stars-chip-icon" draggable="false" />
-						<strong>{{ totalStars }}</strong>
+					<div class="hud-right">
+						<!-- Streak only appears once there is one to keep: an empty "0 days"
+						     badge on first launch is noise, not a hook. -->
+						<div v-if="appStore.streak.current > 0" class="streak-chip" :title="`Best streak: ${appStore.streak.best} days`">
+							<IconFlame class="streak-chip-icon" />
+							<strong>{{ appStore.streak.current }}</strong>
+						</div>
+						<div class="stars-chip">
+							<IconStar class="stars-chip-icon" />
+							<strong>{{ totalStars }}</strong>
+						</div>
+						<button class="hud-btn" title="Records" @click="appStore.openRecords">
+							<span v-if="!hasAnyRecord" class="hud-btn-dot" />
+							<IconRecords />
+						</button>
+						<button class="hud-btn" title="Settings" @click="appStore.openSettings">
+							<IconSettings />
+						</button>
 					</div>
 				</header>
 
-				<!-- Body: mascot host (left) + 3×2 mode grid (right) -->
-				<div class="menu-body">
-					<MascotSlot class="menu-mascot" size="min(52vh, 15rem)" variant="wizard" />
+				<!-- One hero and three alternatives. The hero is the campaign melody
+				     the player is on: its art, its stars, a big amber PLAY and the
+				     road of levels ahead. Everything else on this screen is smaller
+				     than it on purpose. -->
+				<div class="menu-play">
+					<button class="hero-card mode-campaign" @click="appStore.startContinue">
+						<MoodScene :mood="continueMood" class="hero-art" />
+						<span class="hero-veil" />
 
-					<div class="menu-cards">
-						<button class="menu-card mode-campaign" @click="appStore.openCampaignLevels">
-							<span class="menu-card-icon icon-campaign" />
-							<span class="menu-card-title">Campaign</span>
+						<span class="hero-badge">
+							<IconCampaign class="hero-badge-icon" />
+							{{ campaignStarted ? 'Continue' : 'Start here' }}
+						</span>
+
+						<span class="hero-body">
+							<strong class="hero-title">{{ continueLabel }}</strong>
+							<StarRow class="hero-stars" :count="continueStars" :max="3" />
+							<span class="hero-cue">
+								{{ continueBestTime ? `Best ${formatMs(continueBestTime)} — beat it` : 'Campaign · read and play' }}
+							</span>
+							<span class="hero-play"><IconPlay class="hero-play-icon" /> Play</span>
+						</span>
+
+						<span class="hero-road">
+							<span
+								v-for="step in roadAhead"
+								:key="step.id"
+								class="road-node"
+								:class="{ current: step.current, done: step.stars > 0 }"
+							>
+								<span class="road-number">{{ step.number }}</span>
+								<span class="road-stars">
+									<i v-for="n in 3" :key="n" :class="{ lit: n <= step.stars }" />
+								</span>
+							</span>
+						</span>
+					</button>
+
+					<div class="mode-column">
+						<button class="mode-card mode-endless" @click="appStore.startEchoMode">
+							<span class="mode-card-icon"><IconEar /></span>
+							<span class="mode-card-text">
+								<strong>By Ear</strong>
+								<span>Listen, then write the notes</span>
+							</span>
 						</button>
-						<button class="menu-card mode-time" @click="appStore.startTimeMode">
-							<span class="menu-card-icon icon-time" />
-							<span class="menu-card-title">Time Mode</span>
+
+						<button class="mode-card mode-time" @click="appStore.startSprint">
+							<span class="mode-card-icon"><IconSprint /></span>
+							<span class="mode-card-text">
+								<strong>Sprint</strong>
+								<span>{{ echoBest || sprintBest ? `Best: ${sprintBest} melodies` : 'One run, no stops' }}</span>
+							</span>
 						</button>
-						<button class="menu-card mode-endless" @click="appStore.startEndlessMode">
-							<span class="menu-card-icon icon-endless" />
-							<span class="menu-card-title">Endless</span>
+
+						<button class="mode-card mode-records" @click="appStore.openTunes">
+							<span class="mode-card-icon"><IconStudio /></span>
+							<span class="mode-card-text">
+								<strong>My Tunes</strong>
+								<span>
+									{{
+										appStore.userTunes.length
+											? `${appStore.userTunes.length} ${appStore.userTunes.length === 1 ? 'tune' : 'tunes'} written`
+											: 'Write your own melody'
+									}}
+								</span>
+							</span>
 						</button>
-						<button class="menu-card mode-trainer" @click="appStore.startTrainerMode">
-							<span class="menu-card-icon icon-trainer" />
-							<span class="menu-card-title">Note Trainer</span>
-						</button>
-						<button class="menu-card mode-records" @click="appStore.openRecords">
-							<span v-if="!hasAnyRecord" class="menu-card-badge">NEW</span>
-							<span class="menu-card-icon icon-records" />
-							<span class="menu-card-title">Records</span>
-						</button>
-						<button class="menu-card mode-settings" @click="appStore.openSettings">
-							<span class="menu-card-icon icon-settings" />
-							<span class="menu-card-title">Settings</span>
+
+					<!-- The mascot fills the column's tail with the one line of advice
+					     the screen has room for. -->
+					<div class="menu-host">
+						<MascotSlot class="menu-mascot" size="5.5rem" variant="idle" />
+						<p class="menu-tip">{{ mascotTip }}</p>
+					</div>
+					</div>
+				</div>
+
+				<div class="menu-secondary">
+					<button class="secondary-row mode-campaign" @click="appStore.openCampaignLevels">
+						<IconCampaign class="secondary-row-icon" />
+						All levels
+					</button>
+					<button class="secondary-row mode-records" @click="appStore.openRecords">
+						<IconRecords class="secondary-row-icon" />
+						Records
+					</button>
+					<button class="secondary-row mode-settings" @click="appStore.openSettings">
+						<IconSettings class="secondary-row-icon" />
+						Settings
+					</button>
+				</div>
+			</section>
+
+			<!-- Progression, not a settings list: each world is one panel with its own
+			     accent, a progress bar, and a grid of compact level nodes. 25 levels
+			     fit in a block the player can scan at a glance instead of scrolling
+			     300 identical rows. -->
+			<section v-else-if="screen === 'campaign-levels'" class="screen stack">
+				<div
+					v-for="world in appStore.worldsWithProgress"
+					:key="world.id"
+					class="world-panel"
+					:class="DIFFICULTY_MODE[world.difficulty]"
+				>
+					<header class="world-head">
+						<MoodScene :mood="world.themeId" class="world-scene" />
+						<div class="world-text">
+							<strong class="world-title">{{ world.title }}</strong>
+							<span class="world-concept">{{ world.concept }}</span>
+						</div>
+						<span class="world-difficulty">{{ DIFFICULTY_LABEL[world.difficulty] }}</span>
+						<div class="world-progress">
+							<span class="world-stars">
+								<IconStar class="world-stars-icon" />
+								{{ world.starsEarned }}/{{ world.totalStars }}
+							</span>
+							<span class="world-bar">
+								<span
+									class="world-bar-fill"
+									:style="{ width: `${world.totalStars ? (world.starsEarned / world.totalStars) * 100 : 0}%` }"
+								/>
+							</span>
+						</div>
+					</header>
+
+					<div v-if="world.newNoteIds.length" class="note-chips">
+						<span class="note-chips-label">New notes</span>
+						<span v-for="noteId in world.newNoteIds" :key="noteId" class="note-chip">{{
+							noteChipLabel(noteId)
+						}}</span>
+					</div>
+
+					<div class="node-grid">
+						<button
+							v-for="level in world.levels"
+							:key="level.id"
+							class="level-node"
+							:class="{
+								milestone: level.isMilestone,
+								cleared: (appStore.campaignProgress[level.id]?.bestStars ?? 0) > 0,
+							}"
+							:title="levelNodeTitle(level)"
+							@click="appStore.startCampaignLevel(level.id)"
+						>
+							<span class="node-index">{{ (level.index ?? 0) + 1 }}</span>
+							<StarRow
+								class="node-stars"
+								:count="appStore.campaignProgress[level.id]?.bestStars ?? 0"
+								:max="3"
+							/>
+							<!-- Played melodies say so on the node itself: with every level
+							     open, the board's job is to report what has been done rather
+							     than what is permitted. -->
+							<span v-if="levelBestTime(level)" class="node-time">{{
+								formatMs(levelBestTime(level) as number)
+							}}</span>
 						</button>
 					</div>
 				</div>
 			</section>
 
-			<section v-else-if="screen === 'campaign-levels'" class="screen stack">
-				<div class="song-list">
-					<template v-for="world in appStore.worldsWithProgress" :key="world.id">
-						<div class="song-section">
-							<span class="song-section-note" :style="{ '--note': DIFFICULTY_NOTE[world.difficulty] }" />
-							<div class="song-section-text">
-								<strong>{{ world.title }}</strong>
-								<span>{{ world.concept }}</span>
-								<div v-if="world.newNoteIds.length" class="note-chips">
-									<span v-for="noteId in world.newNoteIds" :key="noteId" class="note-chip">{{
-										noteChipLabel(noteId)
-									}}</span>
-								</div>
-							</div>
-							<span class="section-stars">{{ world.starsEarned }}/{{ world.totalStars }} ★</span>
-						</div>
-
-						<button
-							v-for="level in world.levels"
-							:key="level.id"
-							class="song-row"
-							:class="{ locked: !appStore.isLevelUnlocked(level.index ?? 0), milestone: level.isMilestone }"
-							:disabled="!appStore.isLevelUnlocked(level.index ?? 0)"
-							@click="appStore.startCampaignLevel(level.id)"
-						>
-							<span v-if="level.isMilestone" class="corner-ribbon">Real Song</span>
-							<span class="song-row-index">{{ (level.index ?? 0) + 1 }}</span>
-							<span class="song-row-title">
-								<strong>{{ level.title }}</strong>
-								<span>{{ level.artist }} · {{ level.bpm }} BPM</span>
-							</span>
-							<span class="song-row-trailing">
-								<IconLock v-if="!appStore.isLevelUnlocked(level.index ?? 0)" class="song-row-lock" />
-								<StarRow
-									v-else
-									:count="appStore.campaignProgress[level.id]?.bestStars ?? 0"
-									:max="3"
-								/>
-							</span>
-						</button>
-					</template>
-				</div>
-			</section>
-
-			<section v-else-if="screen === 'records'" class="screen stack">
+			<section v-else-if="screen === 'records'" class="screen stack centered">
 				<div class="segmented records-tabs">
 					<button
 						v-for="group in groupedRecords"
@@ -273,7 +537,7 @@ const isNewBestCombo = computed(() => {
 						</div>
 					</div>
 					<div v-else class="empty-state">
-						<img class="empty-state-art" src="/img/stitch/treble-clef.png" alt="" draggable="false" />
+						<span class="empty-state-art"><IconMusic /></span>
 						<p class="empty-copy">
 							No {{ activeRecordGroup.title }} records yet — play a run to see it here.
 						</p>
@@ -281,7 +545,7 @@ const isNewBestCombo = computed(() => {
 				</div>
 			</section>
 
-			<section v-else-if="screen === 'settings'" class="screen stack">
+			<section v-else-if="screen === 'settings'" class="screen stack centered">
 				<div class="settings-grid">
 					<button
 						class="toggle-card accent-time"
@@ -295,18 +559,8 @@ const isNewBestCombo = computed(() => {
 						<strong class="toggle-card-label">Sound</strong>
 						<span class="switch" :class="{ on: appStore.settings.soundEnabled }"><span class="switch-knob" /></span>
 					</button>
-					<button
-						class="toggle-card accent-endless"
-						@click="
-							appStore.updateAppSettings({
-								musicEnabled: !appStore.settings.musicEnabled,
-							})
-						"
-					>
-						<span class="toggle-card-icon-badge"><IconMusic class="toggle-card-icon" /></span>
-						<strong class="toggle-card-label">Music</strong>
-						<span class="switch" :class="{ on: appStore.settings.musicEnabled }"><span class="switch-knob" /></span>
-					</button>
+					<!-- No Music toggle: the project ships note samples only, so the switch
+					     controlled nothing. It comes back the day there is a track to play. -->
 					<button
 						class="toggle-card accent-campaign"
 						@click="
@@ -343,6 +597,18 @@ const isNewBestCombo = computed(() => {
 						<strong class="toggle-card-label">HUD Align</strong>
 						<span class="switch" :class="{ on: appStore.settings.leftHandedHud }"><span class="switch-knob" /></span>
 					</button>
+					<button
+						class="toggle-card accent-campaign"
+						@click="
+							appStore.updateAppSettings({
+								keyHintsEnabled: !appStore.settings.keyHintsEnabled,
+							})
+						"
+					>
+						<span class="toggle-card-icon-badge"><IconSprint class="toggle-card-icon" /></span>
+						<strong class="toggle-card-label">Key Hints</strong>
+						<span class="switch" :class="{ on: appStore.settings.keyHintsEnabled }"><span class="switch-knob" /></span>
+					</button>
 					<div class="toggle-card naming-card accent-settings">
 						<span class="naming-card-head">
 							<span class="toggle-card-icon-badge"><IconMusic class="toggle-card-icon" /></span>
@@ -375,12 +641,51 @@ const isNewBestCombo = computed(() => {
 				</button>
 			</section>
 
+			<!-- The player's own tunes. A list, not a board: these are files they
+			     made, and the actions on a file are play, edit, rename, delete. -->
+			<section v-else-if="screen === 'tunes'" class="screen stack">
+				<div class="tunes-head">
+					<h2 class="section-title">My Tunes</h2>
+					<button class="primary-btn" @click="appStore.newTune">New tune</button>
+				</div>
+
+				<p v-if="!appStore.userTunes.length" class="empty-copy">
+					Nothing written yet. "New tune" opens an empty staff — play the keys and the
+					notes land where the line stands.
+				</p>
+
+				<div v-else class="tune-list">
+					<div v-for="tune in appStore.userTunes" :key="tune.id" class="tune-row">
+						<div class="tune-info">
+							<strong class="tune-title">{{ tune.title }}</strong>
+							<span class="tune-meta">
+								{{ tune.notes.length }} notes · {{ tuneDurationLabel(tune) }} · {{ tune.bpm }} BPM
+							</span>
+						</div>
+						<button
+							class="secondary-btn small"
+							:disabled="!tune.notes.length"
+							@click="appStore.playTune(tune.id)"
+						>
+							▶ Play
+						</button>
+						<button class="secondary-btn small primary" @click="appStore.editTune(tune.id)">
+							Edit
+						</button>
+						<button class="secondary-btn small destructive" @click="appStore.removeTune(tune.id)">
+							Delete
+						</button>
+					</div>
+				</div>
+			</section>
+
 			<section v-else-if="screen === 'result'" class="screen stack">
 				<div class="result-card">
+					<MoodScene :mood="resultMood" class="result-scene" />
 					<MascotSlot
 						class="result-mascot"
 						size="5.5rem"
-						:variant="(appStore.lastResult?.stars ?? 0) >= 3 ? 'stage' : 'wizard'"
+						:variant="(appStore.lastResult?.stars ?? 0) >= 3 ? 'cheer' : 'thinking'"
 					/>
 					<div class="result-header">
 						<StarRow
@@ -389,18 +694,48 @@ const isNewBestCombo = computed(() => {
 							:count="appStore.lastResult?.stars ?? 0"
 							:max="3"
 						/>
-						<GradeBadge v-else :grade="appStore.lastResult?.badge ?? 'D'" />
 						<h2>
-							{{ appStore.lastResult?.levelTitle || appStore.lastResult?.modeId }}
+							{{ appStore.lastResult?.levelTitle || appStore.lastResult?.modeTitle }}
 						</h2>
 					</div>
-					<div class="grid result-stats">
+
+					<!-- Why the round ended, before any numbers: a failed run and a clean
+					     one otherwise look identical at a glance. -->
+					<p class="result-verdict" :class="resultOutcome.tone">{{ resultOutcome.label }}</p>
+
+					<!-- By Ear grades two different skills, so it reports them as two
+					     numbers: which notes came out, and where they landed. Blending
+					     them into one percentage would hide which of the two failed. -->
+					<div v-if="isEchoResult" class="grid result-stats">
 						<div class="glass-card">
-							<span class="eyebrow">Score</span>
+							<span class="eyebrow">Notes</span>
+							<strong class="metric">{{ formatAccuracy(appStore.lastResult?.accuracy ?? 0) }}</strong>
+						</div>
+						<div class="glass-card">
+							<span class="eyebrow">Placement</span>
 							<strong class="metric">{{
-								appStore.lastResult?.score ?? 0
+								formatAccuracy(appStore.lastResult?.tempoAccuracy ?? 0)
 							}}</strong>
-							<span v-if="isNewBestScore" class="new-best-tag">New Best!</span>
+						</div>
+						<div class="glass-card">
+							<span class="eyebrow">Right</span>
+							<strong class="metric">
+								{{ appStore.lastResult?.notesCompleted ?? 0 }}/{{ appStore.lastResult?.notesTotal ?? 0 }}
+							</strong>
+						</div>
+						<div class="glass-card">
+							<span class="eyebrow">Your tempo</span>
+							<strong class="metric">
+								{{ appStore.lastEchoScore?.playedBpm ? `${appStore.lastEchoScore.playedBpm} BPM` : '—' }}
+							</strong>
+						</div>
+					</div>
+
+					<div v-else class="grid result-stats">
+						<div class="glass-card">
+							<span class="eyebrow">Time</span>
+							<strong class="metric">{{ formatMs(appStore.lastResult?.timeMs ?? 0) }}</strong>
+							<span v-if="isNewBestTime" class="new-best-tag">New Best!</span>
 						</div>
 						<div class="glass-card">
 							<span class="eyebrow">Accuracy</span>
@@ -410,28 +745,16 @@ const isNewBestCombo = computed(() => {
 							<span v-if="isNewBestAccuracy" class="new-best-tag">New Best!</span>
 						</div>
 						<div class="glass-card">
-							<span class="eyebrow">Max Combo</span>
+							<span class="eyebrow">Tempo</span>
 							<strong class="metric">{{
-								appStore.lastResult?.maxCombo ?? 0
+								formatAccuracy(appStore.lastResult?.tempoAccuracy ?? 100)
 							}}</strong>
-							<span v-if="isNewBestCombo" class="new-best-tag">New Best!</span>
 						</div>
 						<div class="glass-card">
-							<span class="eyebrow">{{
-								appStore.lastResult?.modeId === 'endless'
-									? 'Survival'
-									: appStore.lastResult?.modeId === 'time'
-										? 'Time'
-										: 'Misses'
-							}}</span>
-							<strong class="metric">
-								{{
-									appStore.lastResult?.modeId === 'endless' ||
-									appStore.lastResult?.modeId === 'time'
-										? formatTime(appStore.lastResult?.survivalTimeSec ?? 0)
-										: appStore.lastResult?.misses ?? 0
-								}}
-							</strong>
+							<span class="eyebrow">{{ isSprintResult ? 'Melodies' : 'Wrong keys' }}</span>
+							<strong class="metric">{{
+								isSprintResult ? appStore.lastResult?.score ?? 0 : appStore.lastResult?.misses ?? 0
+							}}</strong>
 						</div>
 					</div>
 
@@ -440,15 +763,32 @@ const isNewBestCombo = computed(() => {
 					</p>
 
 					<div class="hero-actions">
+						<!-- A rewarded ad the player asks for: keep the run instead of
+						     losing it. Offered once per run. -->
+						<button
+							v-if="appStore.revivableRun"
+							class="primary-btn"
+							@click="appStore.reviveSprintWithAd"
+						>
+							Watch ad · keep run
+						</button>
 						<button
 							class="secondary-btn"
-							:class="{ primary: appStore.lastResult?.modeId !== 'campaign' }"
+							:class="{
+								primary:
+									appStore.lastResult?.modeId !== 'campaign' &&
+									!appStore.revivableRun &&
+									!isEchoResult,
+							}"
 							@click="appStore.replayLast"
 						>
 							Retry
 						</button>
+						<button v-if="isEchoResult" class="primary-btn" @click="appStore.startAnotherEcho">
+							Next tune
+						</button>
 						<button
-							v-if="appStore.lastResult?.modeId === 'campaign'"
+							v-if="appStore.lastResult?.modeId === 'campaign' && appStore.lastResult?.completed"
 							class="primary-btn"
 							@click="appStore.nextCampaignLevel"
 						>
@@ -459,19 +799,43 @@ const isNewBestCombo = computed(() => {
 				</div>
 			</section>
 
+			<!-- Keyed by session: a mode that swaps one melody for the next without
+			     leaving the screen would otherwise reuse the component, leaving the
+			     finished melody's engine mounted and the player stuck. -->
 			<GameStage
 				v-else-if="screen === 'gameplay' && appStore.activeSession"
+				:key="appStore.activeSession.id"
 				:session="appStore.activeSession"
 				:settings="appStore.settings"
 				@finish="appStore.finishSession"
 				@acknowledge-notes="appStore.acknowledgeNewNotes"
 				@exit="appStore.exitGameplay"
 			/>
+
+			<ComposerStage
+				v-else-if="screen === 'composer' && appStore.editingTune"
+				:key="appStore.editingTune.id"
+				:tune="appStore.editingTune"
+				:settings="appStore.settings"
+				@save="appStore.saveTune"
+				@exit="appStore.closeComposer"
+			/>
+
+			<EchoStage
+				v-else-if="screen === 'echo' && appStore.echoSession"
+				:key="appStore.echoSession.id"
+				:session="appStore.echoSession"
+				:settings="appStore.settings"
+				@finish="appStore.finishEcho"
+				@exit="appStore.exitEcho"
+			/>
 		</main>
 	</div>
 </template>
 
 <style scoped lang="scss">
+@use '../assets/mixins' as *;
+
 .shell {
 	position: relative;
 	height: 100dvh;
@@ -480,35 +844,102 @@ const isNewBestCombo = computed(() => {
 	padding: max(env(safe-area-inset-top), 1rem)
 		max(env(safe-area-inset-right), 1rem) max(env(safe-area-inset-bottom), 1rem)
 		max(env(safe-area-inset-left), 1rem);
-	background: #090d18;
-	color: #f7f9ff;
+	background: var(--bg-base);
+	color: var(--text-1);
 	overflow-x: hidden;
 	overflow-y: auto;
 	-webkit-overflow-scrolling: touch;
 }
 
-/* Layered background: the Stitch neon-staff scene photo at the bottom, a dark +
-   theme-tinted gradient veil on top so foreground text/cards always stay legible
-   over the busy artwork. */
+/* Gameplay and By Ear draw their own full-height layout, safe areas included.
+   Left inside the padded, scrollable shell they came out taller than the window
+   by exactly that padding, so the whole screen scrolled and their overlays hung
+   off the bottom edge. */
+.shell.full-bleed {
+	padding: 0;
+	overflow: hidden;
+}
+
+/* Background is drawn in CSS, not photographed: a dark ground plus two soft
+   light pools tinted by the active theme. Nothing here competes with the UI —
+   the earlier scene photo is what made list text unreadable over it. */
 .shell-bg {
 	position: fixed;
 	inset: 0;
 	z-index: 0;
-	background:
-		radial-gradient(circle at 15% 10%, rgba(255, 255, 255, 0.1), transparent 24%),
-		radial-gradient(circle at 82% 22%, rgba(255, 150, 210, 0.14), transparent 26%),
-		linear-gradient(160deg, rgba(9, 12, 24, 0.34), rgba(9, 12, 24, 0.6)),
-		var(--asset-bg-scene) center / cover no-repeat,
-		var(--hero-gradient);
 	overflow: hidden;
+	background:
+		/* Two coloured blooms: the mode's own accent up in the left corner and a
+		   fixed magenta on the right, so the ground has direction and warmth
+		   instead of one even wash. */
+		radial-gradient(
+			ellipse 60% 50% at 8% -10%,
+			color-mix(in srgb, var(--hero-accent) 26%, transparent),
+			transparent 70%
+		),
+		radial-gradient(ellipse 55% 45% at 96% 8%, rgba(196, 92, 210, 0.2), transparent 70%),
+		radial-gradient(ellipse 70% 40% at 50% 108%, rgba(90, 60, 220, 0.28), transparent 72%),
+		linear-gradient(180deg, #2a1a6e 0%, var(--bg-base) 42%, var(--bg-deep) 100%);
 }
 
-/* Purely decorative — keeps the home screen from feeling like a bare settings
-   panel. Slow drift + fade, low opacity, ignores clicks. */
+/* A star field, drawn as three layers of dotted gradients rather than as DOM
+   nodes: a hundred absolutely-positioned spans would cost layout on every
+   resize, and this costs one paint. */
+.shell-bg::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background-image:
+		radial-gradient(1.6px 1.6px at 12% 18%, rgba(255, 255, 255, 0.9), transparent 60%),
+		radial-gradient(1.3px 1.3px at 27% 62%, rgba(255, 255, 255, 0.7), transparent 60%),
+		radial-gradient(1.8px 1.8px at 43% 12%, rgba(255, 236, 190, 0.9), transparent 60%),
+		radial-gradient(1.2px 1.2px at 58% 44%, rgba(255, 255, 255, 0.65), transparent 60%),
+		radial-gradient(1.7px 1.7px at 71% 22%, rgba(214, 196, 255, 0.85), transparent 60%),
+		radial-gradient(1.3px 1.3px at 84% 66%, rgba(255, 255, 255, 0.7), transparent 60%),
+		radial-gradient(1.5px 1.5px at 92% 32%, rgba(255, 236, 190, 0.8), transparent 60%),
+		radial-gradient(1.2px 1.2px at 19% 86%, rgba(255, 255, 255, 0.6), transparent 60%),
+		radial-gradient(1.4px 1.4px at 63% 88%, rgba(214, 196, 255, 0.7), transparent 60%);
+	opacity: 0.9;
+	pointer-events: none;
+	animation: star-breathe 7s ease-in-out infinite;
+}
+
+@keyframes star-breathe {
+	0%, 100% { opacity: 0.55; }
+	50% { opacity: 0.95; }
+}
+
+/* A single low-contrast staff sweeping across the ground — the one "musical"
+   decoration, at an opacity that can never fight foreground text. */
+.shell-bg::before {
+	content: '';
+	position: absolute;
+	left: -6%;
+	right: -6%;
+	top: 52%;
+	height: 8.5rem;
+	transform: translateY(-50%) rotate(-3.5deg);
+	background: repeating-linear-gradient(
+		to bottom,
+		rgba(214, 196, 255, 0.1) 0 1px,
+		transparent 1px 1.7rem
+	);
+	-webkit-mask-image: linear-gradient(to right, transparent, #000 22%, #000 78%, transparent);
+	mask-image: linear-gradient(to right, transparent, #000 22%, #000 78%, transparent);
+}
+
+/* Drifting notes, lit rather than inked: on the violet ground the old
+   ink-coloured glyphs were invisible, which is half of why the screen read as
+   empty between the cards. */
+.note-4 { left: 3%; top: 64%; font-size: 1.5rem; animation-delay: -6s; }
+.note-5 { right: 2.5%; top: 82%; font-size: 2.3rem; animation-delay: -9s; }
+.note-6 { left: 34%; top: 94%; font-size: 1.4rem; animation-delay: -3.5s; }
+
 .floating-note {
 	position: absolute;
-	color: rgba(255, 255, 255, 0.16);
-	font-size: 2.6rem;
+	color: rgba(226, 214, 255, 0.22);
+	font-size: 2.1rem;
+	text-shadow: 0 0 1.4rem rgba(168, 132, 255, 0.5);
 	pointer-events: none;
 	animation: note-drift 14s ease-in-out infinite;
 }
@@ -530,13 +961,6 @@ const isNewBestCombo = computed(() => {
 	top: 78%;
 	left: 20%;
 	animation-delay: 6s;
-}
-
-.note-4 {
-	top: 20%;
-	left: 70%;
-	font-size: 2.1rem;
-	animation-delay: 9s;
 }
 
 @keyframes note-drift {
@@ -578,14 +1002,22 @@ const isNewBestCombo = computed(() => {
 }
 
 .brand strong {
-	font-size: 1.05rem;
+	font-size: var(--text-lg);
 }
 
 .brand-mark {
-	width: 2.4rem;
-	height: 2.4rem;
-	object-fit: contain;
-	filter: var(--art-shadow);
+	display: grid;
+	place-items: center;
+	width: 2rem;
+	height: 2rem;
+	border-radius: var(--radius-s);
+	background: var(--surface-2);
+	color: var(--accent);
+}
+
+.brand-mark svg {
+	width: 1.05rem;
+	height: 1.05rem;
 }
 
 .content {
@@ -596,7 +1028,7 @@ const isNewBestCombo = computed(() => {
 }
 
 .screen {
-	max-width: 72rem;
+	max-width: var(--screen-max);
 	margin: 0 auto;
 	width: 100%;
 }
@@ -609,20 +1041,25 @@ const isNewBestCombo = computed(() => {
 .screen.menu-screen {
 	flex: 1;
 	min-height: 0;
-	max-width: 78rem;
 	display: flex;
 	flex-direction: column;
-	gap: 0.7rem;
+	gap: var(--space-3);
 }
 
 .stack {
 	display: grid;
-	gap: 0.5rem;
+	gap: var(--space-3);
+}
+
+/* Short screens (settings, records) sit in the middle of the viewport instead of
+   clinging to the top edge with a screen of dead space beneath them. */
+.screen.centered {
+	margin-block: auto;
 }
 
 .grid {
 	display: grid;
-	gap: 0.5rem;
+	gap: var(--space-2);
 }
 
 .two-up {
@@ -631,18 +1068,48 @@ const isNewBestCombo = computed(() => {
 
 .glass-card,
 .result-card {
-	padding: 0.85rem 1rem;
-	border-radius: var(--radius-l);
-	background: linear-gradient(
-		160deg,
-		rgba(20, 24, 48, 0.74),
-		rgba(11, 14, 30, 0.56)
-	);
-	border: 1px solid rgba(255, 255, 255, 0.14);
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
-		var(--shadow-2),
-		0 0 2.4rem color-mix(in srgb, var(--hero-accent) 12%, transparent);
-	backdrop-filter: blur(18px);
+	@include panel;
+	padding: var(--space-3) var(--space-4);
+	/* Never taller than the screen it is shown on: a result the player has to
+	   scroll hides the buttons that end the round. */
+	max-height: calc(100dvh - 2rem);
+	overflow-y: auto;
+}
+
+/* A phone in landscape is about 360px tall, and the result card's decoration
+   costs more than half of that. The numbers and the buttons are the screen; the
+   scene and the mascot are what goes first. */
+@media (max-height: 560px) {
+	.result-card {
+		padding: var(--space-2) var(--space-3);
+		gap: 0.35rem;
+	}
+
+	.result-scene,
+	.result-mascot {
+		display: none;
+	}
+
+	.result-card h2 {
+		font-size: var(--text-md);
+	}
+
+	.result-verdict {
+		margin: 0.1rem 0;
+		font-size: var(--text-xs);
+	}
+
+	.result-stats .glass-card {
+		padding: 0.3rem 0.25rem;
+	}
+
+	.result-stats .metric {
+		font-size: 0.95rem;
+	}
+
+	.hero-actions {
+		gap: 0.4rem;
+	}
 }
 
 .glass-card {
@@ -665,33 +1132,24 @@ const isNewBestCombo = computed(() => {
 .primary-btn,
 .secondary-btn,
 .ghost-btn,
-.menu-card,
 .toggle-card {
-	border: none;
 	cursor: pointer;
-	transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
 }
 
 .primary-btn,
 .secondary-btn,
 .ghost-btn {
 	padding: 0.7rem 1.15rem;
-	border-radius: var(--radius-round);
-	font-weight: 700;
-	font-size: 0.9rem;
+	font-weight: var(--weight-bold);
+	font-size: var(--text-md);
 }
 
+/* Every button in the app stands on a solid edge and sinks onto it when
+   pressed. Pill-shaped gradients with a soft halo read as a web form; this reads
+   as a control. */
 .primary-btn,
 .secondary-btn.primary {
-	background: linear-gradient(
-		135deg,
-		#ffd86f 0%,
-		#ff9dd8 45%,
-		var(--hero-accent) 100%
-	);
-	color: #07111f;
-	box-shadow: 0 1rem 2.4rem
-		color-mix(in srgb, var(--hero-accent) 30%, transparent);
+	@include chunky(var(--accent-1, var(--accent)), var(--accent-2, var(--accent-deep)));
 }
 
 .primary-btn.small {
@@ -700,65 +1158,49 @@ const isNewBestCombo = computed(() => {
 }
 
 .secondary-btn {
-	background: rgba(255, 255, 255, 0.1);
-	color: white;
+	@include chunky-ghost;
 }
 
 /* A destructive, rarely-used action shouldn't be the visually loudest thing on
-   the screen — small, centered, and muted instead of a full-width filled pill. */
+   the screen — small, centered, and outlined instead of a filled block. */
 .secondary-btn.destructive {
 	justify-self: center;
 	background: transparent;
-	border: 1px solid rgba(255, 120, 140, 0.28);
-	color: rgba(255, 200, 210, 0.75);
+	border: 2px solid color-mix(in srgb, var(--bad) 55%, transparent);
+	box-shadow: none;
+	color: var(--bad);
 	padding: 0.55rem 1.1rem;
 	font-size: 0.82rem;
 }
 
 .secondary-btn.destructive:hover {
-	background: rgba(255, 120, 140, 0.12);
-	color: #ffd7df;
+	background: color-mix(in srgb, var(--bad) 10%, transparent);
+	color: var(--bad);
 }
 
 .ghost-btn {
-	background: rgba(255, 255, 255, 0.06);
-	color: rgba(243, 246, 255, 0.88);
+	@include chunky-ghost;
+	color: var(--text-2);
 }
 
 .metric {
 	display: block;
 	font-size: clamp(1.55rem, 4vw, 2.35rem);
-	margin-top: 0.4rem;
+	margin-top: var(--space-1);
 }
 
 .eyebrow {
-	font-size: 0.75rem;
-	letter-spacing: 0.14em;
-	text-transform: uppercase;
-	color: rgba(231, 237, 255, 0.62);
+	@include caps;
+	color: var(--text-3);
 }
 
-.menu-card,
 .toggle-card {
-	padding: 0.7rem 0.85rem;
-	border-radius: var(--radius-l);
-	background: linear-gradient(
-		150deg,
-		rgba(17, 22, 44, 0.75),
-		rgba(9, 12, 24, 0.55)
-	);
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	color: #f7f9ff;
+	padding: var(--space-3);
 	text-align: left;
 }
 
-.menu-card:hover,
-.toggle-card:hover,
-.primary-btn:hover,
-.secondary-btn:hover,
-.ghost-btn:hover {
-	transform: translateY(-2px);
-	box-shadow: var(--shadow-2);
+.toggle-card {
+	@include chunky-ghost(var(--radius-l));
 }
 
 /* Landscape-first home: left is the 3D mascot "host" over the neon scene, right is
@@ -778,31 +1220,30 @@ const isNewBestCombo = computed(() => {
 	display: flex;
 	align-items: center;
 	gap: 0.55rem;
-	padding: 0.3rem 0.7rem 0.3rem 0.35rem;
+	padding: 0.3rem 0.8rem 0.3rem 0.35rem;
 	border-radius: var(--radius-round);
-	background: linear-gradient(150deg, rgba(28, 24, 54, 0.72), rgba(12, 14, 30, 0.55));
-	border: 1px solid rgba(255, 255, 255, 0.14);
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), var(--shadow-1);
-	backdrop-filter: blur(14px);
+	background: var(--surface-2);
 }
 
 .player-avatar {
 	flex-shrink: 0;
 	display: grid;
 	place-items: center;
-	width: 2.5rem;
-	height: 2.5rem;
+	width: 2.2rem;
+	height: 2.2rem;
 	border-radius: 50%;
-	overflow: hidden;
-	background: radial-gradient(circle at 50% 35%, rgba(255, 216, 111, 0.3), rgba(12, 14, 30, 0.6));
-	border: 2px solid rgba(255, 216, 111, 0.55);
+	color: var(--accent);
+	background: radial-gradient(
+		circle at 50% 35%,
+		color-mix(in srgb, var(--accent) 28%, transparent),
+		rgba(12, 14, 30, 0.6)
+	);
+	border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
-.player-avatar img {
-	width: 150%;
-	height: 150%;
-	object-fit: contain;
-	object-position: center 20%;
+.player-avatar svg {
+	width: 1.05rem;
+	height: 1.05rem;
 }
 
 .player-info {
@@ -812,23 +1253,21 @@ const isNewBestCombo = computed(() => {
 }
 
 .player-name {
-	font-size: 0.8rem;
+	font-size: var(--text-sm);
 	line-height: 1;
 }
 
 .player-lv {
-	font-size: 0.62rem;
-	font-weight: 800;
-	color: rgba(255, 216, 111, 0.92);
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
+	@include caps(0.62rem);
+	color: color-mix(in srgb, var(--accent) 90%, white);
+	letter-spacing: 0.06em;
 }
 
 .xp-bar {
 	margin-top: 0.12rem;
-	height: 0.32rem;
+	height: 0.3rem;
 	border-radius: var(--radius-round);
-	background: rgba(255, 255, 255, 0.14);
+	background: var(--surface-2);
 	overflow: hidden;
 }
 
@@ -836,23 +1275,24 @@ const isNewBestCombo = computed(() => {
 	display: block;
 	height: 100%;
 	border-radius: var(--radius-round);
-	background: linear-gradient(90deg, #ffd86f, #ff9d3d);
-	box-shadow: 0 0 0.4rem rgba(255, 200, 70, 0.6);
-	transition: width 320ms ease;
+	background: linear-gradient(90deg, var(--accent), var(--mode-campaign));
+	transition: width var(--dur-3) var(--ease);
+}
+
+.menu-logo-art {
+	height: 2.4rem;
+	width: auto;
+	display: block;
+	filter: drop-shadow(0 4px 10px rgba(10, 4, 32, 0.55));
 }
 
 .menu-logo {
 	justify-self: center;
 	margin: 0;
-	font-size: clamp(1.5rem, 5vw, 2.6rem);
-	font-weight: 800;
+	font-size: var(--text-display);
+	font-weight: var(--weight-black);
 	line-height: 1;
-	letter-spacing: 0.01em;
-	background: linear-gradient(135deg, #fff 0%, #ffe6a6 45%, #ff9dd8 100%);
-	-webkit-background-clip: text;
-	background-clip: text;
-	color: transparent;
-	filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.45));
+	color: var(--text-1);
 	white-space: nowrap;
 }
 
@@ -863,302 +1303,588 @@ const isNewBestCombo = computed(() => {
 	gap: 0.35rem;
 	padding: 0.3rem 0.85rem;
 	border-radius: var(--radius-round);
-	background: linear-gradient(150deg, rgba(28, 24, 54, 0.72), rgba(12, 14, 30, 0.55));
-	border: 1px solid rgba(255, 216, 111, 0.4);
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), var(--shadow-1);
-	backdrop-filter: blur(14px);
-	font-weight: 800;
-	font-size: 1rem;
+	background: var(--surface-2);
+	font-weight: var(--weight-black);
+	font-size: var(--text-md);
 }
 
 .stars-chip-icon {
-	width: 1.2rem;
-	height: 1.2rem;
-	object-fit: contain;
-	filter: drop-shadow(0 0 0.35rem rgba(255, 200, 70, 0.7));
+	width: 1rem;
+	height: 1rem;
+	color: var(--mode-records);
 }
 
-/* ---- Body: mascot + cards ---- */
-.menu-body {
-	flex: 1;
-	min-height: 0;
-	display: grid;
-	grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
-	gap: 0.8rem;
+/* ---- HUD right cluster ---- */
+.hud-right {
+	justify-self: end;
+	display: flex;
 	align-items: center;
+	gap: var(--space-2);
 }
 
-.menu-mascot {
-	align-self: end;
-	justify-self: center;
-}
-
-.menu-cards {
-	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
-	grid-template-rows: repeat(2, minmax(4.4rem, 1fr));
-	gap: 0.6rem;
-	height: 100%;
-	min-height: 0;
-	align-content: center;
-}
-
-/* Vivid cards with a tinted note/star pattern baked into each colored fill (see the
-   reference). The pattern gives every card life and variety while a shared glossy
-   top sheen, rounded frame and consistent grid keep them a cohesive set.
-   --accent = mode color; --pat = the colored pattern background. */
-.menu-card {
-	--accent: var(--mode-time);
-	--pat: none;
+/* Utilities are icon-only and sit apart from the play buttons — they are not a
+   way to play and should not look like one. */
+.hud-btn {
+	@include lift;
 	position: relative;
+	display: grid;
+	place-items: center;
+	width: 2.2rem;
+	height: 2.2rem;
+	border-radius: var(--radius-round);
+	background: var(--surface-2);
+	color: var(--text-2);
+	cursor: pointer;
+}
+
+.hud-btn svg {
+	width: 1.05rem;
+	height: 1.05rem;
+}
+
+.hud-btn:hover {
+	color: var(--text-1);
+	border-color: var(--border);
+}
+
+/* Unseen-content dot instead of the old "NEW" ribbon on a full-size card. */
+.hud-btn-dot {
+	position: absolute;
+	top: 0.15rem;
+	right: 0.15rem;
+	width: 0.42rem;
+	height: 0.42rem;
+	border-radius: 50%;
+	background: var(--mode-records);
+}
+
+.streak-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 0.3rem 0.7rem;
+	border-radius: var(--radius-round);
+	background: color-mix(in srgb, var(--mode-campaign) 12%, transparent);
+	font-weight: var(--weight-black);
+	font-size: var(--text-md);
+	color: var(--mode-campaign);
+}
+
+.streak-chip-icon {
+	width: 0.95rem;
+	height: 0.95rem;
+}
+
+/* ---- Body: two ways to play ---- */
+/* Landscape home: the hero takes two thirds of the width, the three other modes
+   stack beside it. On a narrow phone they go under it instead of shrinking to
+   unreadable slivers. */
+.menu-play {
+	flex: 1;
+	display: grid;
+	grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
+	gap: var(--space-3);
+	align-items: stretch;
+	min-height: 0;
+}
+
+@media (max-width: 720px) {
+	.menu-play {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/* ---- Hero card ---- */
+.hero-card {
+	@include panel(var(--radius-l));
+	position: relative;
+	display: grid;
+	grid-template-rows: auto 1fr auto;
+	gap: var(--space-2);
+	padding: var(--space-3);
+	overflow: hidden;
+	text-align: left;
+	color: var(--text-1);
+	cursor: pointer;
+	border: 2px solid color-mix(in srgb, var(--accent-1) 55%, var(--border));
+	box-shadow: 0 6px 0 var(--accent-2), 0 0 2rem color-mix(in srgb, var(--accent-1) 22%, transparent);
+	transition: transform var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+
+.hero-card:active {
+	transform: translateY(5px);
+	box-shadow: 0 1px 0 var(--accent-2), 0 0 1rem color-mix(in srgb, var(--accent-1) 18%, transparent);
+}
+
+/* The mood art is the card's background, not a picture on it: full bleed, with
+   a veil so the text over it never has to fight the sky. */
+.hero-art {
+	position: absolute;
+	inset: 0 0 auto 0;
+	z-index: 0;
+	width: 100%;
+	height: 62%;
+	aspect-ratio: auto;
+	border-radius: 0;
+}
+
+.hero-veil {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	background:
+		linear-gradient(180deg, rgba(15, 9, 48, 0) 0%, rgba(15, 9, 48, 0.08) 30%, rgba(46, 34, 120, 0.85) 56%, var(--panel-top) 66%),
+		/* A soft vignette so the card has a lit centre rather than four equally
+		   bright corners. */
+		radial-gradient(ellipse 80% 60% at 50% 40%, transparent 40%, rgba(10, 4, 32, 0.45) 100%);
+}
+
+.hero-badge,
+.hero-body,
+.hero-road {
+	position: relative;
+	z-index: 2;
+}
+
+.hero-badge {
+	@include caps;
+	justify-self: start;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.3rem 0.65rem;
+	border-radius: var(--radius-round);
+	background: color-mix(in srgb, var(--accent-1) 22%, rgba(15, 9, 48, 0.7));
+	border: 1px solid color-mix(in srgb, var(--accent-1) 55%, transparent);
+	color: var(--accent-1);
+}
+
+.hero-badge-icon {
+	width: 0.9rem;
+	height: 0.9rem;
+}
+
+.hero-body {
 	display: flex;
 	flex-direction: column;
+	justify-content: flex-end;
+	gap: 0.4rem;
+	min-height: 0;
+}
+
+.hero-title {
+	font-size: clamp(1.3rem, 3.2vw, 2rem);
+	font-weight: var(--weight-black);
+	line-height: 1.05;
+	text-shadow: 0 2px 12px rgba(10, 4, 32, 0.6);
+}
+
+.hero-stars {
+	justify-content: flex-start;
+}
+
+.hero-cue {
+	@include caps;
+	color: var(--text-3);
+}
+
+/* The one amber thing on the screen. */
+.hero-play {
+	@include chunky;
+	align-self: flex-start;
+	display: inline-flex;
 	align-items: center;
-	justify-content: center;
-	gap: 0.5rem;
-	padding: 0.7rem 0.7rem 0.75rem;
-	text-align: center;
-	overflow: hidden;
-	border: 1px solid color-mix(in srgb, var(--accent) 55%, rgba(255, 255, 255, 0.25));
-	border-radius: var(--radius-l);
-	background: var(--pat) center / cover no-repeat,
-		linear-gradient(180deg, color-mix(in srgb, var(--accent) 90%, white 5%), color-mix(in srgb, var(--accent) 70%, black 25%));
-	box-shadow:
-		inset 0 1.5px 0 rgba(255, 255, 255, 0.4),
-		inset 0 -1.2rem 1.8rem color-mix(in srgb, var(--accent) 55%, black 30%),
-		0 0.6rem 1.4rem rgba(0, 0, 0, 0.4),
-		0 0 1.4rem color-mix(in srgb, var(--accent) 28%, transparent);
-	transition: transform 160ms cubic-bezier(0.2, 0.7, 0.3, 1), box-shadow 200ms ease, filter 160ms ease;
+	gap: 0.45rem;
+	margin-top: 0.35rem;
+	padding: 0.55rem 1.6rem;
+	font-size: var(--text-lg);
 }
 
-.menu-card:hover {
-	transform: translateY(-4px);
-	filter: brightness(1.06);
-	box-shadow:
-		inset 0 1.5px 0 rgba(255, 255, 255, 0.5),
-		inset 0 -1.2rem 1.8rem color-mix(in srgb, var(--accent) 55%, black 30%),
-		0 1rem 2.2rem rgba(0, 0, 0, 0.45),
-		0 0 2.4rem color-mix(in srgb, var(--accent) 55%, transparent);
+.hero-play-icon {
+	width: 1.1rem;
+	height: 1.1rem;
 }
 
-.menu-card.mode-campaign { --accent: var(--mode-campaign); --pat: url('/img/stitch/patterns/pat-campaign.png'); }
-.menu-card.mode-time { --accent: var(--mode-time); --pat: url('/img/stitch/patterns/pat-time.png'); }
-.menu-card.mode-endless { --accent: var(--mode-endless); --pat: url('/img/stitch/patterns/pat-endless.png'); }
-.menu-card.mode-trainer { --accent: var(--mode-trainer); --pat: url('/img/stitch/patterns/pat-trainer.png'); }
-.menu-card.mode-records { --accent: var(--mode-records); --pat: url('/img/stitch/patterns/pat-records.png'); }
-.menu-card.mode-settings { --accent: var(--mode-settings); --pat: url('/img/stitch/patterns/pat-settings.png'); }
-
-/* Detailed 3D glyph on transparent bg (see /img/stitch/iconsx), sitting on a soft
-   accent-colored light pool so it reads as lit by the card's own glow. */
-.menu-card-icon {
-	position: relative;
-	z-index: 1;
-	width: 4.2rem;
-	height: 4.2rem;
-	background-repeat: no-repeat;
-	background-position: center;
-	background-size: contain;
-	filter: drop-shadow(0 3px 7px rgba(0, 0, 0, 0.45))
-		drop-shadow(0 0 0.7rem rgba(255, 255, 255, 0.35));
-	transition: transform 200ms cubic-bezier(0.2, 0.7, 0.3, 1);
-}
-
-/* Soft white light pool behind the icon so it pops off the colored fill. */
-.menu-card-icon::before {
-	content: '';
-	position: absolute;
-	inset: -18%;
-	z-index: -1;
-	background: radial-gradient(circle, rgba(255, 255, 255, 0.35), transparent 65%);
-	filter: blur(6px);
-}
-
-.menu-card:hover .menu-card-icon {
-	transform: scale(1.08) translateY(-2px);
-}
-
-.icon-campaign { background-image: url('/img/stitch/iconsx/icon-campaign.png'); }
-.icon-time { background-image: url('/img/stitch/iconsx/icon-time.png'); }
-.icon-endless { background-image: url('/img/stitch/iconsx/icon-endless.png'); }
-.icon-trainer { background-image: url('/img/stitch/iconsx/icon-trainer.png'); }
-.icon-records { background-image: url('/img/stitch/iconsx/icon-records.png'); }
-.icon-settings { background-image: url('/img/stitch/iconsx/icon-settings.png'); }
-
-.menu-card-title {
-	position: relative;
-	z-index: 1;
-	font-size: 1rem;
-	font-weight: 800;
-	color: #ffffff;
-	text-shadow: 0 2px 4px color-mix(in srgb, var(--accent) 60%, black 40%),
-		0 1px 2px rgba(0, 0, 0, 0.4);
-}
-
-/* "NEW" ribbon in the top-right corner, like the reference's Records badge. */
-.menu-card-badge {
-	position: absolute;
-	top: 0.5rem;
-	right: 0.5rem;
-	z-index: 2;
-	padding: 0.12rem 0.45rem;
-	border-radius: var(--radius-round);
-	background: linear-gradient(135deg, #ff5ea3, #b23bff);
-	color: #fff;
-	font-size: 0.6rem;
-	font-weight: 800;
-	letter-spacing: 0.06em;
-	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-
-/* Two columns uses the width landscape gives us, roughly halving how far the
-   300-level list has to scroll. */
-.song-list {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 0.4rem 0.6rem;
-}
-
-.song-section {
-	grid-column: 1 / -1;
+/* The road: this level and the four after it. Progress as a path is the one
+   piece of game furniture the old menu had no equivalent for. */
+.hero-road {
 	display: flex;
-	align-items: flex-start;
-	gap: 0.6rem;
-	margin: 0.5rem 0 0.1rem;
-	padding: 0 0.2rem;
+	align-items: center;
+	gap: 0.4rem;
+	flex-wrap: wrap;
 }
 
-.song-section-note {
-	flex-shrink: 0;
-	width: 2.1rem;
-	height: 2.1rem;
-	background: var(--note, none) center / contain no-repeat;
-	filter: var(--art-shadow);
-	margin-top: 0.1rem;
+.road-node {
+	display: grid;
+	justify-items: center;
+	gap: 0.1rem;
+	min-width: 2.4rem;
+	padding: 0.25rem 0.35rem;
+	border-radius: var(--radius-s);
+	background: rgba(15, 9, 48, 0.6);
+	border: 1px solid var(--border-soft);
 }
 
-.song-section-text {
-	flex: 1;
+.road-node.done {
+	border-color: color-mix(in srgb, var(--mode-records) 45%, transparent);
+}
+
+.road-node.current {
+	background: color-mix(in srgb, var(--accent-1) 26%, rgba(15, 9, 48, 0.7));
+	border-color: var(--accent-1);
+	box-shadow: 0 0 0.9rem color-mix(in srgb, var(--accent-1) 40%, transparent);
+}
+
+.road-number {
+	font-size: var(--text-xs);
+	font-weight: var(--weight-black);
+	color: var(--text-2);
+}
+
+.road-stars {
+	display: flex;
+	gap: 0.1rem;
+}
+
+.road-stars i {
+	width: 0.28rem;
+	height: 0.28rem;
+	border-radius: 50%;
+	background: var(--surface-2);
+}
+
+.road-stars i.lit {
+	background: var(--mode-records);
+	box-shadow: 0 0 0.35rem var(--mode-records);
+}
+
+/* ---- The other three modes ---- */
+.mode-column {
+	display: grid;
+	grid-template-rows: repeat(3, auto) 1fr;
+	align-content: start;
+	gap: var(--space-2);
+	min-height: 0;
+}
+
+.mode-card {
+	@include panel(var(--radius-m));
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	padding: var(--space-3);
+	text-align: left;
+	color: var(--text-1);
+	cursor: pointer;
+	border: 2px solid color-mix(in srgb, var(--accent-1) 40%, var(--border));
+	box-shadow: 0 4px 0 var(--accent-2);
+	transition: transform var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease),
+		border-color var(--dur-1) var(--ease);
+}
+
+.mode-card:hover {
+	border-color: var(--accent-1);
+}
+
+.mode-card:active {
+	transform: translateY(3px);
+	box-shadow: 0 1px 0 var(--accent-2);
+}
+
+/* The icon tile carries the mode's colour and its glow — the card body stays
+   calm, so three cards in a column do not turn into three coloured slabs. */
+.mode-card-icon {
+	@include icon-well(var(--accent-1), 2.8rem, var(--radius-m));
+}
+
+.mode-card-icon svg {
+	width: 1.4rem;
+	height: 1.4rem;
+}
+
+.mode-card-text {
+	display: flex;
+	flex-direction: column;
+	gap: 0.1rem;
 	min-width: 0;
 }
 
-.song-section strong {
-	display: block;
-	font-size: 1rem;
+.mode-card-text strong {
+	font-size: var(--text-lg);
+	line-height: 1.1;
 }
 
-.song-section-text > span {
-	color: rgba(230, 235, 252, 0.64);
-	font-size: 0.88rem;
+.mode-card-text span {
+	font-size: var(--text-sm);
+	color: var(--text-3);
 }
 
-.section-stars {
+/* ---- Mascot and tip ---- */
+.menu-host {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	padding-top: var(--space-2);
+	min-height: 0;
+}
+
+.menu-mascot {
 	flex-shrink: 0;
-	font-weight: 700;
-	color: #ffd36e;
+}
+
+/* A speech bubble with a tail, because a floating line of grey text next to a
+   character does not read as the character saying it. */
+.menu-tip {
+	position: relative;
+	margin: 0;
+	padding: var(--space-2) var(--space-3);
+	border-radius: var(--radius-m);
+	background: var(--surface-raised);
+	border: 1px solid var(--border);
+	box-shadow: var(--shadow-1);
+	color: var(--text-2);
+	font-size: var(--text-sm);
+	line-height: 1.35;
+}
+
+.menu-tip::before {
+	content: '';
+	position: absolute;
+	left: -0.42rem;
+	top: 1.2rem;
+	width: 0.8rem;
+	height: 0.8rem;
+	rotate: 45deg;
+	background: var(--surface-raised);
+	border-left: 1px solid var(--border);
+	border-bottom: 1px solid var(--border);
+}
+
+/* ---- Secondary row ---- */
+.menu-secondary {
+	display: flex;
+	justify-content: center;
+	gap: var(--space-2);
+	margin: 0;
+}
+
+.secondary-row {
+	@include chunky-ghost(var(--radius-m));
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	padding: 0.5rem 1rem;
+	border-radius: var(--radius-round);
+	background: var(--surface-1);
+	color: var(--text-2);
+	font-size: var(--text-sm);
+	font-weight: var(--weight-bold);
+	cursor: pointer;
+}
+
+.secondary-row:hover {
+	color: var(--text-1);
+	border-color: color-mix(in srgb, var(--accent-1) 40%, transparent);
+}
+
+.secondary-row-icon {
+	width: 0.95rem;
+	height: 0.95rem;
+	color: var(--accent-1);
+}
+
+/* Rounded badge holding a mode's SVG glyph, tinted by its accent. */
+.mode-icon {
+	position: relative;
+	z-index: 1;
+	display: grid;
+	place-items: center;
+	width: 3.6rem;
+	height: 3.6rem;
+	border-radius: var(--radius-m);
+	color: var(--accent-1);
+	background: linear-gradient(
+		150deg,
+		color-mix(in srgb, var(--accent-1) 24%, transparent),
+		color-mix(in srgb, var(--accent-2) 12%, transparent)
+	);
+	border: 1px solid color-mix(in srgb, var(--accent-1) 28%, transparent);
+	transition: transform var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
+}
+
+.mode-icon svg {
+	width: 1.75rem;
+	height: 1.75rem;
+}
+
+.play-card:hover .mode-icon {
+	transform: translateY(-2px) scale(1.06);
+	box-shadow: 0 0 1.2rem color-mix(in srgb, var(--accent-1) 32%, transparent);
+}
+
+/* ---- Campaign: one panel per world, levels as nodes ---- */
+.world-panel {
+	@include panel;
+	display: grid;
+	gap: var(--space-3);
+	padding: var(--space-4);
+}
+
+/* A world the player can't reach yet stays visible (so the road ahead is legible)
+   but recedes — it must not compete with the world they're actually playing. */
+.world-panel.dimmed {
+	opacity: 0.55;
+}
+
+.world-head {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
+	align-items: center;
+	gap: var(--space-3);
+}
+
+.world-text {
+	min-width: 0;
+	display: grid;
+	gap: 0.1rem;
+}
+
+.world-title {
+	font-size: var(--text-lg);
+	color: var(--text-1);
+}
+
+.world-concept {
+	font-size: var(--text-sm);
+	color: var(--text-3);
+}
+
+.world-difficulty {
+	@include caps;
+	padding: 0.2rem 0.6rem;
+	border-radius: var(--radius-round);
+	color: var(--accent-2);
+	background: color-mix(in srgb, var(--accent-1) 14%, transparent);
+	border: 1px solid color-mix(in srgb, var(--accent-1) 32%, transparent);
 	white-space: nowrap;
+}
+
+.world-progress {
+	display: grid;
+	justify-items: end;
+	gap: 0.3rem;
+	min-width: 7rem;
+}
+
+.world-stars {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	font-weight: var(--weight-bold);
+	font-size: var(--text-sm);
+	color: var(--text-2);
+}
+
+.world-stars-icon {
+	width: 0.9rem;
+	height: 0.9rem;
+	color: var(--mode-records);
+}
+
+.world-bar {
+	display: block;
+	width: 100%;
+	height: 0.3rem;
+	border-radius: var(--radius-round);
+	background: var(--surface-2);
+	overflow: hidden;
+}
+
+.world-bar-fill {
+	display: block;
+	height: 100%;
+	border-radius: var(--radius-round);
+	background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+	transition: width var(--dur-3) var(--ease);
 }
 
 .note-chips {
 	display: flex;
 	flex-wrap: wrap;
+	align-items: center;
 	gap: 0.35rem;
-	margin-top: 0.4rem;
+}
+
+.note-chips-label {
+	@include caps;
+	color: var(--text-3);
+	margin-right: 0.15rem;
 }
 
 .note-chip {
-	padding: 0.25rem 0.6rem;
+	padding: 0.15rem 0.5rem;
 	border-radius: var(--radius-round);
-	background: rgba(255, 255, 255, 0.1);
-	font-size: 0.78rem;
-	font-weight: 700;
+	background: var(--surface-2);
+	font-size: var(--text-xs);
+	font-weight: var(--weight-bold);
+	color: var(--text-2);
 }
 
-.song-row {
-	position: relative;
-	display: flex;
-	align-items: center;
-	gap: 0.7rem;
-	padding: 0.6rem 0.85rem;
-	border-radius: var(--radius-m);
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
-	color: #f7f9ff;
-	text-align: left;
-	cursor: pointer;
-	overflow: hidden;
-	transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
-}
-
-/* Diagonal corner banner (classic CSS ribbon technique) instead of an inline pill
-   next to the title — matches the reference's "REAL SONG" corner treatment. */
-.corner-ribbon {
-	position: absolute;
-	top: 0.55rem;
-	right: -1.7rem;
-	width: 5.8rem;
-	transform: rotate(30deg);
-	background: linear-gradient(135deg, #ffd86f, #ff9dd8);
-	color: #07111f;
-	font-size: 0.54rem;
-	font-weight: 800;
-	letter-spacing: 0.03em;
-	text-transform: uppercase;
-	text-align: center;
-	padding: 0.08rem 0;
-	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-	z-index: 1;
-}
-
-.song-row:hover:not(:disabled) {
-	transform: translateY(-1px);
-	box-shadow: var(--shadow-1);
-}
-
-.song-row.milestone {
-	border-color: color-mix(in srgb, var(--mode-campaign) 45%, transparent);
-	background: linear-gradient(135deg, color-mix(in srgb, var(--mode-campaign) 16%, transparent), rgba(255, 255, 255, 0.04));
-}
-
-.song-row.locked,
-.song-row:disabled {
-	opacity: 0.42;
-	cursor: not-allowed;
-}
-
-.song-row-index {
-	flex-shrink: 0;
-	width: 1.9rem;
-	text-align: center;
-	font-weight: 700;
-	color: rgba(230, 235, 252, 0.55);
-}
-
-.song-row-title {
-	flex: 1;
-	min-width: 0;
+/* Nodes instead of rows: 25 levels read as a board at a glance, where the same
+   levels as a list needed a long scroll and looked like settings. */
+.node-grid {
 	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(3.4rem, 1fr));
+	gap: var(--space-2);
+}
+
+.level-node {
+	@include chunky-ghost(var(--radius-m));
+	position: relative;
+	display: grid;
+	justify-items: center;
+	align-content: center;
 	gap: 0.15rem;
+	aspect-ratio: 1;
+	padding: 0.2rem;
+	color: var(--text-1);
+	cursor: pointer;
 }
 
-.song-row-title strong {
-	font-size: 0.92rem;
+.level-node:hover:not(:disabled) {
+	border-color: color-mix(in srgb, var(--accent-1) 70%, transparent);
 }
 
-.song-row-title span {
-	font-size: 0.8rem;
-	color: rgba(230, 235, 252, 0.6);
+/* Cleared: filled with the world accent so progress is visible as a shape, not
+   only as stars. */
+.level-node.cleared {
+	background: color-mix(in srgb, var(--accent-1) 14%, transparent);
+	border-color: color-mix(in srgb, var(--accent-1) 34%, transparent);
 }
 
-.song-row-trailing {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
+/* Milestone ("real song") levels carry a gold ring — the campaign's landmarks. */
+.level-node.milestone {
+	box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--mode-records) 45%, transparent);
 }
 
-.song-row-lock {
-	width: 1.1rem;
-	height: 1.1rem;
-	color: rgba(230, 235, 252, 0.45);
+.node-index {
+	font-size: var(--text-md);
+	font-weight: var(--weight-black);
+	line-height: 1;
+}
+
+/* Best time on a cleared node: the board's report of what was actually done. */
+.node-time {
+	font-size: 0.6rem;
+	font-weight: var(--weight-bold);
+	color: var(--text-2);
+	line-height: 1;
+}
+
+.node-stars {
+	transform: scale(0.62);
+	transform-origin: center;
+	margin-top: -0.1rem;
 }
 
 .toggle-card.naming-card {
@@ -1179,26 +1905,27 @@ const isNewBestCombo = computed(() => {
 	gap: 0.55rem;
 }
 
+/* Tinted, not filled: the icon carries the accent while the row stays quiet. */
 .toggle-card-icon-badge {
 	flex-shrink: 0;
 	display: grid;
 	place-items: center;
-	width: 2.1rem;
-	height: 2.1rem;
+	width: 2rem;
+	height: 2rem;
 	border-radius: var(--radius-s);
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2);
+	background: color-mix(in srgb, var(--accent-1) 16%, transparent);
+	border: 1px solid color-mix(in srgb, var(--accent-1) 28%, transparent);
+	color: var(--accent-1);
 }
 
 .toggle-card-icon {
-	width: 1.15rem;
-	height: 1.15rem;
-	color: white;
-	filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+	width: 1.05rem;
+	height: 1.05rem;
 }
 
 .toggle-card-label {
 	flex: 1;
-	font-size: 0.85rem;
+	font-size: var(--text-md);
 }
 
 .switch {
@@ -1207,9 +1934,9 @@ const isNewBestCombo = computed(() => {
 	width: 2.4rem;
 	height: 1.3rem;
 	border-radius: var(--radius-round);
-	background: rgba(255, 255, 255, 0.12);
-	border: 1px solid rgba(255, 255, 255, 0.16);
-	transition: background 140ms ease;
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	transition: background var(--dur-1) var(--ease);
 }
 
 .switch-knob {
@@ -1225,7 +1952,7 @@ const isNewBestCombo = computed(() => {
 }
 
 .switch.on {
-	background: linear-gradient(135deg, #7be495, #22cf7a);
+	background: linear-gradient(135deg, var(--good), var(--mode-trainer-deep));
 	border-color: transparent;
 }
 
@@ -1233,34 +1960,19 @@ const isNewBestCombo = computed(() => {
 	transform: translateX(1.1rem);
 }
 
-.toggle-card.accent-time .toggle-card-icon-badge {
-	background: linear-gradient(150deg, var(--mode-time), var(--mode-time-deep));
-}
-
-.toggle-card.accent-endless .toggle-card-icon-badge {
-	background: linear-gradient(150deg, var(--mode-endless), var(--mode-endless-deep));
-}
-
-.toggle-card.accent-campaign .toggle-card-icon-badge {
-	background: linear-gradient(150deg, var(--mode-campaign), var(--mode-campaign-deep));
-}
-
-.toggle-card.accent-records .toggle-card-icon-badge {
-	background: linear-gradient(150deg, var(--mode-records), var(--mode-records-deep));
-}
-
-.toggle-card.accent-trainer .toggle-card-icon-badge {
-	background: linear-gradient(150deg, var(--mode-trainer), var(--mode-trainer-deep));
-}
-
-.toggle-card.accent-settings .toggle-card-icon-badge {
-	background: linear-gradient(150deg, var(--mode-settings), var(--mode-settings-deep));
-}
+/* Each settings row only declares which accent it belongs to; the badge styling
+   above does the rest, so there is one badge design instead of six. */
+.toggle-card.accent-time { --accent-1: var(--mode-time); --accent-2: var(--mode-time-deep); }
+.toggle-card.accent-endless { --accent-1: var(--mode-endless); --accent-2: var(--mode-endless-deep); }
+.toggle-card.accent-campaign { --accent-1: var(--mode-campaign); --accent-2: var(--mode-campaign-deep); }
+.toggle-card.accent-records { --accent-1: var(--mode-records); --accent-2: var(--mode-records-deep); }
+.toggle-card.accent-trainer { --accent-1: var(--mode-trainer); --accent-2: var(--mode-trainer-deep); }
+.toggle-card.accent-settings { --accent-1: var(--mode-settings); --accent-2: var(--mode-settings-deep); }
 
 .segmented {
 	display: flex;
 	gap: 0.4rem;
-	background: rgba(255, 255, 255, 0.06);
+	background: var(--surface-2);
 	padding: 0.3rem;
 	border-radius: var(--radius-round);
 }
@@ -1268,7 +1980,7 @@ const isNewBestCombo = computed(() => {
 .segmented button {
 	border: none;
 	background: transparent;
-	color: rgba(247, 249, 255, 0.7);
+	color: var(--text-2);
 	padding: 0.45rem 0.9rem;
 	border-radius: var(--radius-round);
 	font-weight: 700;
@@ -1278,12 +1990,17 @@ const isNewBestCombo = computed(() => {
 }
 
 .segmented button.active {
-	background: linear-gradient(135deg, #ffd86f 0%, #ff9dd8 45%, var(--hero-accent) 100%);
-	color: #07111f;
+	background: linear-gradient(135deg, var(--accent-deep), #7d4406);
+	color: var(--text-on-accent);
 }
 
-.records-tabs {
+/* Same measure as the settings column: a 78rem-wide tab strip over a 5-row list
+   reads as a stretched dashboard rather than a game screen. */
+.records-tabs,
+.records-panel {
 	width: 100%;
+	max-width: 48rem;
+	margin-inline: auto;
 }
 
 .records-tabs button {
@@ -1304,11 +2021,18 @@ const isNewBestCombo = computed(() => {
 }
 
 .empty-state-art {
-	width: 4.5rem;
-	height: 4.5rem;
-	object-fit: contain;
-	opacity: 0.85;
-	filter: var(--art-shadow);
+	display: grid;
+	place-items: center;
+	width: 3.2rem;
+	height: 3.2rem;
+	border-radius: var(--radius-m);
+	background: var(--surface-2);
+	color: var(--text-3);
+}
+
+.empty-state-art svg {
+	width: 1.4rem;
+	height: 1.4rem;
 }
 
 .section-head,
@@ -1329,7 +2053,7 @@ const isNewBestCombo = computed(() => {
 .section-head span,
 .record-item span,
 .record-stats span {
-	color: rgba(230, 235, 252, 0.64);
+	color: var(--text-2);
 }
 
 .records-list {
@@ -1339,13 +2063,9 @@ const isNewBestCombo = computed(() => {
 }
 
 .record-item {
-	padding: 0.5rem 0.75rem;
+	padding: var(--space-2) var(--space-3);
 	border-radius: var(--radius-m);
-	background: linear-gradient(
-		135deg,
-		rgba(255, 255, 255, 0.06),
-		rgba(255, 255, 255, 0.03)
-	);
+	background: var(--surface-1);
 }
 
 .record-rank {
@@ -1355,10 +2075,10 @@ const isNewBestCombo = computed(() => {
 	display: grid;
 	place-items: center;
 	border-radius: var(--radius-round);
-	background: rgba(255, 216, 111, 0.16);
-	color: #ffd36e;
-	font-weight: 800;
-	font-size: 0.82rem;
+	background: color-mix(in srgb, var(--mode-records) 16%, transparent);
+	color: var(--mode-records);
+	font-weight: var(--weight-black);
+	font-size: var(--text-sm);
 }
 
 .record-item-text {
@@ -1380,10 +2100,19 @@ const isNewBestCombo = computed(() => {
 	font-size: 1.1rem;
 }
 
+/* The calmest screen in the app (per the design brief): a narrow, centered
+   column of identical rows rather than a wide 3-across grid of colored tiles
+   with a screen of dead space under it. */
 .settings-grid {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 0.5rem;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	/* Rows size to their own content: with the default stretch, the two-line
+	   "Note Names" card forced its plain neighbour to the same height. */
+	align-items: start;
+	gap: var(--space-2);
+	width: 100%;
+	max-width: 48rem;
+	margin: 0 auto;
 }
 
 .toggle-card {
@@ -1440,6 +2169,21 @@ const isNewBestCombo = computed(() => {
 	line-height: 1.2;
 }
 
+/* Says why the round ended before the numbers explain how it went. */
+.result-verdict {
+	@include caps(var(--text-sm));
+	margin: 0;
+	color: var(--text-2);
+}
+
+.result-verdict.good {
+	color: var(--good);
+}
+
+.result-verdict.bad {
+	color: var(--bad);
+}
+
 .result-stats {
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -1459,6 +2203,53 @@ const isNewBestCombo = computed(() => {
 	margin-top: 0.05rem;
 }
 
+/* ---- My Tunes ---- */
+.tunes-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+}
+
+.tune-list {
+	display: grid;
+	gap: var(--space-2);
+}
+
+.tune-row {
+	@include panel(var(--radius-m));
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	padding: var(--space-2) var(--space-3);
+}
+
+.tune-info {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.tune-title {
+	color: var(--text-1);
+	font-size: var(--text-md);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.tune-meta {
+	color: var(--text-3);
+	font-size: var(--text-xs);
+	font-variant-numeric: tabular-nums;
+}
+
+.secondary-btn.small {
+	padding: 0.4rem 0.8rem;
+	font-size: var(--text-sm);
+}
+
 .new-best-tag {
 	display: block;
 	margin-top: 0.15rem;
@@ -1466,13 +2257,12 @@ const isNewBestCombo = computed(() => {
 	font-weight: 800;
 	letter-spacing: 0.02em;
 	text-transform: uppercase;
-	color: #ff8ad4;
-	text-shadow: 0 0 0.6rem rgba(255, 138, 212, 0.6);
+	color: var(--mode-trainer-deep);
 }
 
 .ad-copy,
 .empty-copy {
-	color: rgba(231, 237, 255, 0.66);
+	color: var(--text-2);
 	font-size: 0.78rem;
 	margin: 0;
 }
@@ -1481,7 +2271,14 @@ const isNewBestCombo = computed(() => {
    width in a 2-column grid. The game is landscape-first, but the menu still has to
    look intentional if opened upright. */
 @media (orientation: portrait), (max-width: 560px) {
-	.menu-logo {
+	.menu-logo-art {
+	height: 2.4rem;
+	width: auto;
+	display: block;
+	filter: drop-shadow(0 4px 10px rgba(10, 4, 32, 0.55));
+}
+
+.menu-logo {
 		font-size: clamp(1.2rem, 6vw, 1.9rem);
 	}
 

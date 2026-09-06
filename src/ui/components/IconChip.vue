@@ -25,21 +25,27 @@ withDefaults(
 	min-width: 3.4rem;
 	padding: 0.45rem 0.85rem;
 	border-radius: var(--radius-m);
-	background: linear-gradient(155deg, rgba(24, 28, 56, 0.68), rgba(8, 10, 22, 0.5));
-	border: 1px solid rgba(255, 255, 255, 0.14);
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+	background: var(--surface-2);
+	/* A HUD value is a read-out, and a read-out needs a frame: without one the
+	   numbers floated on the cabinet. */
+	border: 1px solid var(--border);
+	box-shadow: var(--shadow-1);
 }
 
 .icon-chip-icon {
 	width: 1rem;
 	height: 1rem;
 	flex-shrink: 0;
-	color: rgba(255, 255, 255, 0.8);
+	color: var(--text-2);
 }
 
 .icon-chip strong {
 	font-size: clamp(0.9rem, 1.8vw, 1.2rem);
-	color: white;
+	color: var(--text-1);
 	white-space: nowrap;
+	// Proportional digits are different widths, so a counter re-flows the whole
+	// HUD row on every tick. Tabular figures keep every digit the same width.
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: 'tnum' 1;
 }
 </style>

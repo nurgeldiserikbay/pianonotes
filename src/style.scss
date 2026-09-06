@@ -9,8 +9,8 @@
 		BlinkMacSystemFont,
 		'Segoe UI',
 		sans-serif;
-	color: #f6f8ff;
-	background: #090d18;
+	color: #172033;
+	background: #f6f4ef;
 	font-synthesis: none;
 	text-rendering: optimizeLegibility;
 	-webkit-font-smoothing: antialiased;
@@ -32,7 +32,7 @@ body,
 html,
 body {
 	touch-action: manipulation;
-	background: #090d18;
+	background: #f6f4ef;
 	overflow: hidden;
 }
 
@@ -50,6 +50,10 @@ select {
 
 button {
 	-webkit-tap-highlight-color: transparent;
+	// Buttons used to carry an explicit transparent border; removing those in the
+	// flat pass exposed the user-agent default, which drew a hard outline around
+	// every card and pill. The reset belongs here, once.
+	border: none;
 }
 
 a {
@@ -63,5 +67,5 @@ a {
 
 ::-webkit-scrollbar-thumb {
 	border-radius: 999px;
-	background: rgba(255, 255, 255, 0.2);
+	background: rgba(23, 32, 51, 0.22);
 }

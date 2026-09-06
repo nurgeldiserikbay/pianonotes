@@ -1,0 +1,149 @@
+// Reusable style primitives. Kept apart from _tokens.scss because this file
+// emits no CSS of its own: components can `@use` it without duplicating the
+// token :root block into every scoped stylesheet.
+
+// Colored halo behind an element — the "20% excitement" channel. A mixin so
+// intensity stays consistent wherever a mode wants to glow.
+@mixin glow($color, $alpha: 0.45, $size: 1.6rem) {
+	box-shadow: 0 0 $size color-mix(in srgb, $color #{$alpha * 100%}, transparent);
+}
+
+// Standard raised panel: one fill, border and sheen for every surface that sits
+// above the background.
+//
+// No backdrop-filter. On the paper theme the surface is 96% opaque, so the blur
+// was invisible — while costing the compositor a readback of the area behind
+// every panel. The campaign board alone stacks eight of them, and blurring all
+// eight while the list scrolls is what made scrolling stutter on Android. If a
+// translucent surface is ever wanted back, add the filter to that one component,
+// not to every panel in the app.
+// The standard surface: a lit gradient, a rim that catches light at the top,
+// and a hard offset below it. A flat fill with a border reads as a block; this
+// reads as a moulded panel, which is the whole difference in feel.
+@mixin panel($radius: var(--radius-l)) {
+	border-radius: $radius;
+	background: linear-gradient(180deg, var(--panel-top) 0%, var(--panel-bottom) 100%);
+	border: 1px solid var(--border);
+	box-shadow: var(--shadow-1), var(--sheen);
+}
+
+// A panel that sits on another panel — a stat tile, a list row — one step
+// brighter so the stack reads as layers rather than as one dark mass.
+@mixin panel-lifted($radius: var(--radius-m)) {
+	border-radius: $radius;
+	background: linear-gradient(180deg, var(--panel-top-lifted) 0%, var(--panel-bottom-lifted) 100%);
+	border: 1px solid var(--border);
+	box-shadow: var(--shadow-1), var(--sheen);
+}
+
+// The well an icon sits in: a coloured radial glow, a ring of its own hue and
+// an inner shadow, so the icon looks lit from behind rather than printed.
+@mixin icon-well($color: var(--accent-1, var(--accent)), $size: 2.6rem, $radius: var(--radius-m)) {
+	flex-shrink: 0;
+	display: grid;
+	place-items: center;
+	width: $size;
+	height: $size;
+	border-radius: $radius;
+	background:
+		radial-gradient(circle at 50% 30%, color-mix(in srgb, $color 42%, transparent), transparent 70%),
+		linear-gradient(180deg, color-mix(in srgb, $color 22%, transparent), color-mix(in srgb, $color 8%, transparent));
+	border: 1px solid color-mix(in srgb, $color 55%, transparent);
+	color: $color;
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.18),
+		0 0 1.1rem color-mix(in srgb, $color 32%, transparent);
+}
+
+// The one surface that really sits above the page: an overlay card. It is the
+// only place left that carries a shadow, because it has to read as detached.
+@mixin floating($radius: var(--radius-l)) {
+	border-radius: $radius;
+	background: var(--surface-raised);
+	border: 1px solid var(--border-strong);
+	box-shadow: var(--shadow-float), var(--sheen);
+}
+
+// A raised control: filled with its accent, standing on a solid edge of the same
+// hue two shades down, and sinking onto that edge when pressed. This is the one
+// gesture that makes the whole interface feel like a game rather than a form —
+// the button has thickness, and pressing it costs that thickness.
+@mixin chunky($top: var(--accent), $edge: var(--accent-deep), $radius: var(--radius-m)) {
+	position: relative;
+	border: none;
+	border-radius: $radius;
+	background: linear-gradient(180deg, color-mix(in srgb, $top 82%, white), $top);
+	color: var(--text-on-accent);
+	font-weight: var(--weight-black);
+	// The edge it stands on, plus the light it throws: the glow is what makes an
+	// amber button read as lit rather than painted.
+	box-shadow: 0 4px 0 $edge, 0 0 1.4rem color-mix(in srgb, $top 40%, transparent);
+	transition: transform var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease),
+		filter var(--dur-1) var(--ease);
+
+	&:hover:not(:disabled) {
+		filter: brightness(1.06);
+	}
+
+	&:active:not(:disabled) {
+		transform: translateY(3px);
+		box-shadow: 0 1px 0 $edge, 0 0 0.8rem color-mix(in srgb, $top 30%, transparent);
+	}
+
+	&:disabled {
+		filter: grayscale(0.5);
+		opacity: 0.5;
+		box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+	}
+}
+
+// The quiet twin of `chunky`: same thickness and press, neutral surface. For
+// secondary actions that must still look like objects.
+@mixin chunky-ghost($radius: var(--radius-m)) {
+	position: relative;
+	border: 1px solid var(--border);
+	border-radius: $radius;
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05));
+	color: var(--text-1);
+	font-weight: var(--weight-bold);
+	box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
+	transition: transform var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease),
+		background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+
+	&:hover:not(:disabled) {
+		border-color: var(--border-strong);
+	}
+
+	&:active:not(:disabled) {
+		transform: translateY(2px);
+		box-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+	}
+
+	&:disabled {
+		opacity: 0.45;
+		box-shadow: none;
+	}
+}
+
+// Interactive lift shared by cards and buttons: the same distance, curve and
+// duration everywhere, so the whole UI reacts with one personality.
+@mixin lift($y: 2px) {
+	transition: transform var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease),
+		background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
+
+	&:hover:not(:disabled) {
+		transform: translateY(-$y);
+	}
+
+	&:active:not(:disabled) {
+		transform: translateY(0);
+	}
+}
+
+// Uppercase micro-label used for eyebrows, section captions and chips.
+@mixin caps($size: var(--text-xs)) {
+	font-size: $size;
+	font-weight: var(--weight-black);
+	letter-spacing: var(--tracking-caps);
+	text-transform: uppercase;
+}
