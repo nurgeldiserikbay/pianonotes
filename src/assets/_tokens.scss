@@ -23,31 +23,31 @@
 	// sheet glare. Three steps only — the ground, the well behind panels, and the
 	// panel itself — so depth comes from borders and offsets rather than from a
 	// dozen barely-different greys.
-	--bg-base: #121936;
-	--bg-deep: #090d22;
+	--bg-base: #152149;
+	--bg-deep: #080d25;
 	// A third step, for the panel inside a panel (stat tiles, list rows).
-	--bg-sunken: #10162f;
-	--surface-1: rgba(255, 255, 255, 0.06);
-	--surface-2: rgba(255, 255, 255, 0.11);
-	--surface-raised: #20294f;
+	--bg-sunken: #111a3b;
+	--surface-1: rgba(255, 255, 255, 0.075);
+	--surface-2: rgba(255, 255, 255, 0.14);
+	--surface-raised: #253362;
 	// A panel is never one colour: it lights from the top edge down, the way a
 	// moulded surface does. These two are the ends of that ramp.
-	--panel-top: #26315f;
-	--panel-bottom: #1a2348;
+	--panel-top: #2a3970;
+	--panel-bottom: #1c2855;
 	// The same ramp one step brighter, for a panel that has to sit *on* another.
-	--panel-top-lifted: #303c70;
-	--panel-bottom-lifted: #222c57;
+	--panel-top-lifted: #354787;
+	--panel-bottom-lifted: #263466;
 
 	// Borders are visible on purpose. Every panel, chip and key has one.
-	--border-soft: rgba(206, 216, 255, 0.12);
-	--border: rgba(206, 216, 255, 0.2);
-	--border-strong: rgba(220, 228, 255, 0.36);
+	--border-soft: rgba(214, 225, 255, 0.16);
+	--border: rgba(214, 225, 255, 0.26);
+	--border-strong: rgba(228, 234, 255, 0.44);
 
 	// ── Text ────────────────────────────────────────────────────────────────
 	// Three tiers only. Anything below --text-3 fails contrast on this ground.
 	--text-1: #f6f2ff;
-	--text-2: rgba(246, 242, 255, 0.8);
-	--text-3: rgba(246, 242, 255, 0.64);
+	--text-2: rgba(248, 246, 255, 0.86);
+	--text-3: rgba(248, 246, 255, 0.72);
 	// Dark ink on a bright accent: yellow and green accents cannot carry white
 	// text at this saturation without failing contrast.
 	--text-on-accent: #241033;
