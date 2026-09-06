@@ -8,6 +8,7 @@
 // time works and a half-finished set never breaks a screen.
 import { computed, toRef } from 'vue'
 
+import { assetUrl } from '@/utils/assetUrl'
 import { useDropInArt } from '@/ui/useDropInArt'
 
 const props = withDefaults(
@@ -25,8 +26,8 @@ const FALLBACK: Record<string, string> = {
 }
 
 const variant = toRef(props, 'variant')
-const art = useDropInArt(computed(() => `/img/mascot/cat-${variant.value}.png`))
-const src = computed(() => art.src.value ?? FALLBACK[variant.value] ?? FALLBACK.idle)
+const art = useDropInArt(computed(() => assetUrl(`/img/mascot/cat-${variant.value}.png`)))
+const src = computed(() => art.src.value ?? assetUrl(FALLBACK[variant.value] ?? FALLBACK.idle))
 </script>
 
 <template>

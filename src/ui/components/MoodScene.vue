@@ -2,6 +2,7 @@
 import { computed, toRef } from 'vue'
 
 import type { MelodyMood } from '@/core/models'
+import { assetUrl } from '@/utils/assetUrl'
 import { useDropInArt } from '@/ui/useDropInArt'
 
 // A scene per melody mood, drawn as inline SVG rather than shipped as a photo.
@@ -22,7 +23,7 @@ const props = defineProps<{ mood: MelodyMood }>()
 // scene below is what shows until then — and what shows again if the file is
 // ever removed.
 const mood = toRef(props, 'mood')
-const cover = useDropInArt(computed(() => `/img/moods/${mood.value}.png`))
+const cover = useDropInArt(computed(() => assetUrl(`/img/moods/${mood.value}.png`)))
 
 // Deterministic star field: the same seed every render, so a card does not
 // twinkle differently each time Vue re-draws it.

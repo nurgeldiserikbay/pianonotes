@@ -7,6 +7,7 @@ import { formatMs } from '@/features/reading'
 import { getLaneLabel } from '@/entities/piano'
 import { tuneDurationLabel } from '@/features/composer'
 import { useAppStore } from '@/ui/stores/appStore'
+import { assetUrl } from '@/utils/assetUrl'
 import { useDropInArt } from '@/ui/useDropInArt'
 import { MELODIES_BY_DIFFICULTY, getMelodyMood } from '@/modes/melodies'
 
@@ -38,7 +39,7 @@ import ComposerStage from './components/ComposerStage.vue'
 const appStore = useAppStore()
 
 // The drawn wordmark, if it has been dropped in; the styled heading otherwise.
-const logo = useDropInArt(() => '/img/logo-piano-notes.png')
+const logo = useDropInArt(() => assetUrl('/img/logo-piano-notes.png'))
 
 // The library is generated, not typed out, so the button that offers to browse
 // it counts the list rather than repeating a number that would quietly go stale
