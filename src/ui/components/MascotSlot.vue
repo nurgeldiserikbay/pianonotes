@@ -6,14 +6,16 @@
 // is meant to land, one PNG per pose, transparent, square. Anything missing
 // falls back to the render the app already ships, so dropping in one file at a
 // time works and a half-finished set never breaks a screen.
-import { ref } from 'vue'
+import { computed, toRef } from 'vue'
+
+import { useDropInArt } from '@/ui/useDropInArt'
 
 const props = withDefaults(
 	defineProps<{ size?: string; variant?: 'idle' | 'happy' | 'cheer' | 'thinking' | 'wink' }>(),
 	{ size: '6rem', variant: 'idle' }
 )
 
-const ART = `/img/mascot/cat-${props.variant}.png`
+// The renders the app already ships stand in for any pose not drawn yet.
 const FALLBACK: Record<string, string> = {
 	idle: '/img/stitch/mascot-cat-wizard.png',
 	happy: '/img/stitch/mascot-cat-stage.png',
@@ -22,16 +24,14 @@ const FALLBACK: Record<string, string> = {
 	wink: '/img/stitch/mascot-cat-drummer.png',
 }
 
-const src = ref(ART)
-const onError = () => {
-	const fallback = FALLBACK[props.variant] ?? FALLBACK.idle
-	if (src.value !== fallback) src.value = fallback
-}
+const variant = toRef(props, 'variant')
+const art = useDropInArt(computed(() => `/img/mascot/cat-${variant.value}.png`))
+const src = computed(() => art.src.value ?? FALLBACK[variant.value] ?? FALLBACK.idle)
 </script>
 
 <template>
 	<div class="mascot-slot" :style="{ width: size, height: size }">
-		<img class="mascot-art" :src="src" alt="" draggable="false" @error="onError" />
+		<img class="mascot-art" :src="src" alt="" draggable="false" @error="art.onError" />
 	</div>
 </template>
 
