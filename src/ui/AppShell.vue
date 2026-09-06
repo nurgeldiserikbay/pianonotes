@@ -327,11 +327,12 @@ const isNewBestAccuracy = computed(() => {
 							<IconStar class="stars-chip-icon" />
 							<strong>{{ totalStars }}</strong>
 						</div>
-						<button class="hud-btn" title="Records" aria-label="Records" @click="appStore.openRecords">
+						<button class="hud-btn hud-btn-labeled" aria-label="Records" @click="appStore.openRecords">
 							<span v-if="!hasAnyRecord" class="hud-btn-dot" />
 							<IconRecords />
+							<span class="hud-btn-label">Records</span>
 						</button>
-						<button class="hud-btn" title="Settings" aria-label="Settings" @click="appStore.openSettings">
+						<button class="hud-btn" aria-label="Settings" title="Settings" @click="appStore.openSettings">
 							<IconSettings />
 						</button>
 					</div>
@@ -562,7 +563,7 @@ const isNewBestAccuracy = computed(() => {
 						"
 					>
 						<span class="toggle-card-icon-badge"><IconGlow class="toggle-card-icon" /></span>
-						<strong class="toggle-card-label">Lane Glow</strong>
+						<strong class="toggle-card-label">Note highlight</strong>
 						<span class="switch" :class="{ on: appStore.settings.showLaneGlow }"><span class="switch-knob" /></span>
 					</button>
 					<button
@@ -1325,6 +1326,18 @@ const isNewBestAccuracy = computed(() => {
 	cursor: pointer;
 }
 
+.hud-btn-labeled {
+	grid-auto-flow: column;
+	width: auto;
+	padding: 0 var(--space-3);
+	gap: 0.4rem;
+}
+
+.hud-btn-label {
+	font-size: var(--text-sm);
+	font-weight: var(--weight-bold);
+}
+
 .hud-btn svg {
 	width: 1.05rem;
 	height: 1.05rem;
@@ -1376,9 +1389,140 @@ const isNewBestAccuracy = computed(() => {
 	min-height: 0;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 720px) and (orientation: portrait) {
 	.menu-play {
 		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/* The supported floor is 640×300. Keep the two-column landscape hierarchy and
+   remove only non-essential decoration; stacking the columns makes the menu
+   taller than the viewport and hides entire modes. */
+@media (orientation: landscape) and (max-height: 360px) {
+	.shell:not(.full-bleed) {
+		padding: max(env(safe-area-inset-top), 0.35rem)
+			max(env(safe-area-inset-right), 0.45rem)
+			max(env(safe-area-inset-bottom), 0.35rem)
+			max(env(safe-area-inset-left), 0.45rem);
+	}
+
+	.screen.menu-screen {
+		gap: 0.35rem;
+	}
+
+	.menu-hud {
+		gap: 0.35rem;
+	}
+
+	.player-chip {
+		padding: 0.2rem 0.55rem 0.2rem 0.25rem;
+	}
+
+	.player-avatar,
+	.hud-btn {
+		width: 1.9rem;
+		height: 1.9rem;
+	}
+
+	.hud-btn-labeled {
+		width: auto;
+		padding-inline: 0.55rem;
+	}
+
+	.stars-chip {
+		padding: 0.2rem 0.55rem;
+	}
+
+	.menu-logo,
+	.menu-logo-art {
+		font-size: 1.45rem;
+		height: 1.75rem;
+	}
+
+	.menu-play {
+		grid-template-columns: minmax(0, 1.55fr) minmax(13rem, 1fr);
+		gap: 0.45rem;
+	}
+
+	.menu-screen .hero-card {
+		gap: 0.25rem;
+		padding: 0.5rem;
+	}
+
+	.menu-screen .hero-title {
+		font-size: 1.15rem;
+	}
+
+	.menu-screen .hero-cue {
+		font-size: 0.6rem;
+	}
+
+	.menu-screen .hero-play {
+		margin-top: 0.1rem;
+		padding: 0.35rem 0.9rem;
+		font-size: var(--text-md);
+	}
+
+	.menu-screen .hero-road,
+	.menu-screen .menu-host {
+		display: none;
+	}
+
+	.menu-screen .mode-column {
+		grid-template-rows: repeat(3, minmax(0, 1fr));
+		gap: 0.35rem;
+	}
+
+	.menu-screen .mode-card {
+		gap: 0.5rem;
+		padding: 0.4rem 0.55rem;
+	}
+
+	.menu-screen .mode-card-icon {
+		width: 2.1rem;
+		height: 2.1rem;
+		border-radius: var(--radius-s);
+	}
+
+	.menu-screen .mode-card-icon svg {
+		width: 1.05rem;
+		height: 1.05rem;
+	}
+
+	.menu-screen .mode-card-text strong {
+		font-size: var(--text-md);
+	}
+
+	.menu-screen .mode-card-text span {
+		font-size: 0.68rem;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.menu-screen .secondary-row {
+		padding: 0.3rem 0.75rem;
+		font-size: var(--text-xs);
+	}
+}
+
+/* Between the floor and a comfortable phone the menu only misses by a few dozen
+   pixels, and the mascot is what costs them: it sits under the mode cards and
+   its speech bubble reaches across them. Dropping just the mascot buys back the
+   height and keeps the level road, which is the part a player actually uses.
+   Without this the 375-tall landscape iPhones overflowed — 667×375 by 30px,
+   812×375 by 11 — with no way to scroll to what fell off. */
+@media (orientation: landscape) and (min-height: 361px) and (max-height: 400px) {
+	.menu-screen .menu-host {
+		display: none;
+	}
+
+	.menu-screen .hero-card {
+		padding: 0.6rem;
+	}
+
+	.menu-screen .hero-road {
+		gap: 0.3rem;
 	}
 }
 
