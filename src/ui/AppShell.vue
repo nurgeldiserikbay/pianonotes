@@ -8,7 +8,7 @@ import { getLaneLabel } from '@/entities/piano'
 import { tuneDurationLabel } from '@/features/composer'
 import { useAppStore } from '@/ui/stores/appStore'
 import { useDropInArt } from '@/ui/useDropInArt'
-import { getMelodyMood } from '@/modes/melodies'
+import { MELODIES_BY_DIFFICULTY, getMelodyMood } from '@/modes/melodies'
 
 import IconMusic from '@/assets/icons/music.svg'
 import IconSound from '@/assets/icons/sound.svg'
@@ -39,6 +39,11 @@ const appStore = useAppStore()
 
 // The drawn wordmark, if it has been dropped in; the styled heading otherwise.
 const logo = useDropInArt(() => '/img/logo-piano-notes.png')
+
+// The library is generated, not typed out, so the button that offers to browse
+// it counts the list rather than repeating a number that would quietly go stale
+// the next time a melody is added.
+const melodyCount = MELODIES_BY_DIFFICULTY.length
 const screen = computed(() => appStore.screen)
 
 // What a level node says about itself. Everything is playable, so the label is a
@@ -322,11 +327,11 @@ const isNewBestAccuracy = computed(() => {
 							<IconStar class="stars-chip-icon" />
 							<strong>{{ totalStars }}</strong>
 						</div>
-						<button class="hud-btn" title="Records" @click="appStore.openRecords">
+						<button class="hud-btn" title="Records" aria-label="Records" @click="appStore.openRecords">
 							<span v-if="!hasAnyRecord" class="hud-btn-dot" />
 							<IconRecords />
 						</button>
-						<button class="hud-btn" title="Settings" @click="appStore.openSettings">
+						<button class="hud-btn" title="Settings" aria-label="Settings" @click="appStore.openSettings">
 							<IconSettings />
 						</button>
 					</div>
@@ -413,7 +418,7 @@ const isNewBestAccuracy = computed(() => {
 				<div class="menu-secondary">
 					<button class="secondary-row mode-campaign" @click="appStore.openCampaignLevels">
 						<IconCampaign class="secondary-row-icon" />
-						Browse all 251 melodies
+						Browse all {{ melodyCount }} melodies
 					</button>
 				</div>
 			</section>
