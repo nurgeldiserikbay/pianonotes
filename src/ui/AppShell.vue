@@ -871,9 +871,9 @@ const isNewBestAccuracy = computed(() => {
 			color-mix(in srgb, var(--hero-accent) 26%, transparent),
 			transparent 70%
 		),
-		radial-gradient(ellipse 55% 45% at 96% 8%, rgba(99, 118, 208, 0.14), transparent 70%),
-		radial-gradient(ellipse 70% 40% at 50% 108%, rgba(72, 89, 176, 0.18), transparent 72%),
-		linear-gradient(180deg, #1b2550 0%, var(--bg-base) 42%, var(--bg-deep) 100%);
+		radial-gradient(ellipse 55% 45% at 96% 8%, rgba(125, 104, 255, 0.24), transparent 70%),
+		radial-gradient(ellipse 70% 40% at 50% 108%, rgba(36, 184, 255, 0.2), transparent 72%),
+		linear-gradient(180deg, #243778 0%, var(--bg-base) 44%, var(--bg-deep) 100%);
 }
 
 /* A star field, drawn as three layers of dotted gradients rather than as DOM
@@ -1527,6 +1527,26 @@ const isNewBestAccuracy = computed(() => {
 	}
 }
 
+/* Phone polish: keep the same sparse structure, but make the few interactive
+   surfaces read immediately under a thumb and in bright ambient light. */
+@media (orientation: landscape) and (max-height: 420px) {
+	.menu-screen .mode-card {
+		border-color: color-mix(in srgb, var(--accent-1) 58%, var(--border));
+		background: linear-gradient(100deg,
+			color-mix(in srgb, var(--accent-1) 17%, var(--panel-top)),
+			var(--panel-bottom) 72%);
+	}
+
+	.menu-screen .mode-card-text span,
+	.menu-screen .hero-cue {
+		color: var(--text-2);
+	}
+
+	.menu-screen .hero-play {
+		box-shadow: 0 4px 0 var(--accent-deep), 0 0 1.15rem color-mix(in srgb, var(--accent) 32%, transparent);
+	}
+}
+
 /* ---- Hero card ---- */
 .hero-card {
 	@include panel(var(--radius-l));
@@ -1566,7 +1586,7 @@ const isNewBestAccuracy = computed(() => {
 	inset: 0;
 	z-index: 1;
 	background:
-		linear-gradient(180deg, rgba(15, 9, 48, 0) 0%, rgba(15, 9, 48, 0.08) 30%, rgba(46, 34, 120, 0.85) 56%, var(--panel-top) 66%),
+		linear-gradient(180deg, rgba(15, 9, 48, 0) 0%, rgba(15, 9, 48, 0.04) 30%, rgba(38, 45, 126, 0.76) 57%, var(--panel-top) 68%),
 		/* A soft vignette so the card has a lit centre rather than four equally
 		   bright corners. */
 		radial-gradient(ellipse 80% 60% at 50% 40%, transparent 40%, rgba(10, 4, 32, 0.45) 100%);
@@ -1710,7 +1730,9 @@ const isNewBestAccuracy = computed(() => {
 	color: var(--text-1);
 	cursor: pointer;
 	border: 2px solid color-mix(in srgb, var(--accent-1) 40%, var(--border));
-	box-shadow: 0 4px 0 var(--accent-2);
+	background:
+		linear-gradient(100deg, color-mix(in srgb, var(--accent-1) 11%, var(--panel-top)), var(--panel-bottom) 68%);
+	box-shadow: 0 4px 0 var(--accent-2), 0 0 1rem color-mix(in srgb, var(--accent-1) 10%, transparent);
 	transition: transform var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease),
 		border-color var(--dur-1) var(--ease);
 }
@@ -2267,6 +2289,9 @@ const isNewBestAccuracy = computed(() => {
 	text-align: center;
 	display: grid;
 	gap: 0.5rem;
+	overflow: visible;
+	background:
+		linear-gradient(160deg, color-mix(in srgb, var(--hero-accent) 8%, var(--panel-top)), var(--panel-bottom));
 }
 
 /* Celebration mascot at the top-right of the result card — `stage` pose (with the
@@ -2275,10 +2300,16 @@ const isNewBestAccuracy = computed(() => {
    on-screen even when the card sits near the top of a short landscape viewport. */
 .result-mascot {
 	position: absolute;
-	top: -2.4rem;
-	right: -1rem;
+	top: -2rem;
+	right: 0.35rem;
 	z-index: 2;
 	pointer-events: none;
+}
+
+@media (max-height: 560px) {
+	.result-card {
+		overflow-y: auto;
+	}
 }
 
 @media (max-height: 480px) {
