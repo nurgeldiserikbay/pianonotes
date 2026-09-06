@@ -1,4 +1,5 @@
 import { PIANO_KEY_MAP } from '@/entities/piano'
+import { assetUrl } from '@/utils/assetUrl'
 
 const AUDIO_MAP: Record<string, string> = {
 	do: '/audio/do.mp3',
@@ -77,7 +78,7 @@ class AudioService {
 		const ctx = this.getContext()
 		if (!src || !ctx) return Promise.resolve()
 
-		const task = fetch(src)
+		const task = fetch(assetUrl(src))
 			.then((response) => response.arrayBuffer())
 			.then((data) => ctx.decodeAudioData(data))
 			.then((buffer) => {
