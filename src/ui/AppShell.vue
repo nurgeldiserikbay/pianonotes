@@ -266,9 +266,6 @@ const isNewBestAccuracy = computed(() => {
 				<span class="floating-note note-1">♪</span>
 				<span class="floating-note note-2">♫</span>
 				<span class="floating-note note-3">♩</span>
-				<span class="floating-note note-4">♬</span>
-				<span class="floating-note note-5">♪</span>
-				<span class="floating-note note-6">♩</span>
 			</template>
 		</div>
 
@@ -416,15 +413,7 @@ const isNewBestAccuracy = computed(() => {
 				<div class="menu-secondary">
 					<button class="secondary-row mode-campaign" @click="appStore.openCampaignLevels">
 						<IconCampaign class="secondary-row-icon" />
-						All levels
-					</button>
-					<button class="secondary-row mode-records" @click="appStore.openRecords">
-						<IconRecords class="secondary-row-icon" />
-						Records
-					</button>
-					<button class="secondary-row mode-settings" @click="appStore.openSettings">
-						<IconSettings class="secondary-row-icon" />
-						Settings
+						Browse all 251 melodies
 					</button>
 				</div>
 			</section>
@@ -875,9 +864,9 @@ const isNewBestAccuracy = computed(() => {
 			color-mix(in srgb, var(--hero-accent) 26%, transparent),
 			transparent 70%
 		),
-		radial-gradient(ellipse 55% 45% at 96% 8%, rgba(196, 92, 210, 0.2), transparent 70%),
-		radial-gradient(ellipse 70% 40% at 50% 108%, rgba(90, 60, 220, 0.28), transparent 72%),
-		linear-gradient(180deg, #2a1a6e 0%, var(--bg-base) 42%, var(--bg-deep) 100%);
+		radial-gradient(ellipse 55% 45% at 96% 8%, rgba(99, 118, 208, 0.14), transparent 70%),
+		radial-gradient(ellipse 70% 40% at 50% 108%, rgba(72, 89, 176, 0.18), transparent 72%),
+		linear-gradient(180deg, #1b2550 0%, var(--bg-base) 42%, var(--bg-deep) 100%);
 }
 
 /* A star field, drawn as three layers of dotted gradients rather than as DOM
@@ -897,9 +886,9 @@ const isNewBestAccuracy = computed(() => {
 		radial-gradient(1.5px 1.5px at 92% 32%, rgba(255, 236, 190, 0.8), transparent 60%),
 		radial-gradient(1.2px 1.2px at 19% 86%, rgba(255, 255, 255, 0.6), transparent 60%),
 		radial-gradient(1.4px 1.4px at 63% 88%, rgba(214, 196, 255, 0.7), transparent 60%);
-	opacity: 0.9;
+	opacity: 0.58;
 	pointer-events: none;
-	animation: star-breathe 7s ease-in-out infinite;
+	animation: star-breathe 9s ease-in-out infinite;
 }
 
 @keyframes star-breathe {
@@ -929,15 +918,11 @@ const isNewBestAccuracy = computed(() => {
 /* Drifting notes, lit rather than inked: on the violet ground the old
    ink-coloured glyphs were invisible, which is half of why the screen read as
    empty between the cards. */
-.note-4 { left: 3%; top: 64%; font-size: 1.5rem; animation-delay: -6s; }
-.note-5 { right: 2.5%; top: 82%; font-size: 2.3rem; animation-delay: -9s; }
-.note-6 { left: 34%; top: 94%; font-size: 1.4rem; animation-delay: -3.5s; }
-
 .floating-note {
 	position: absolute;
 	color: rgba(226, 214, 255, 0.22);
 	font-size: 2.1rem;
-	text-shadow: 0 0 1.4rem rgba(168, 132, 255, 0.5);
+	text-shadow: 0 0 1rem rgba(168, 180, 255, 0.3);
 	pointer-events: none;
 	animation: note-drift 14s ease-in-out infinite;
 }
@@ -1405,13 +1390,13 @@ const isNewBestAccuracy = computed(() => {
 	color: var(--text-1);
 	cursor: pointer;
 	border: 2px solid color-mix(in srgb, var(--accent-1) 55%, var(--border));
-	box-shadow: 0 6px 0 var(--accent-2), 0 0 2rem color-mix(in srgb, var(--accent-1) 22%, transparent);
+	box-shadow: 0 5px 0 var(--accent-2), 0 0 1.2rem color-mix(in srgb, var(--accent-1) 14%, transparent);
 	transition: transform var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
 
 .hero-card:active {
 	transform: translateY(5px);
-	box-shadow: 0 1px 0 var(--accent-2), 0 0 1rem color-mix(in srgb, var(--accent-1) 18%, transparent);
+	box-shadow: 0 1px 0 var(--accent-2), 0 0 0.7rem color-mix(in srgb, var(--accent-1) 14%, transparent);
 }
 
 /* The mood art is the card's background, not a picture on it: full bleed, with
@@ -1678,6 +1663,11 @@ const isNewBestAccuracy = computed(() => {
 	font-size: var(--text-sm);
 	font-weight: var(--weight-bold);
 	cursor: pointer;
+}
+
+.menu-secondary .secondary-row {
+	min-width: min(18rem, 100%);
+	justify-content: center;
 }
 
 .secondary-row:hover {
