@@ -3,7 +3,6 @@ import type {
 	EndlessComposerState,
 	PatternBlock,
 	PatternNoteInput,
-	SessionConfig,
 } from '@/core/models'
 import { ENDLESS_ROOTS, PIANO_KEYS } from '@/entities/piano'
 
@@ -134,24 +133,6 @@ export function buildChartFromPatterns(patternIds: string[], bpm: number, startM
 	return notes.sort((a, b) => a.timeMs - b.timeMs)
 }
 
-export function buildTimeModeChart(bpm: number) {
-	const seedPattern = [
-		'twinkleA',
-		'twinkleB',
-		'joyRise',
-		'joyResolve',
-		'riverRun',
-		'chordLift',
-	]
-
-	return buildChartFromPatterns(seedPattern, bpm, 0).map((note, index) => ({
-		...note,
-		timeMs: index * 1000,
-		durationMs: 0,
-		type: 'tap' as const,
-	}))
-}
-
 function clampIndex(index: number, length: number) {
 	return Math.max(0, Math.min(index, length - 1))
 }
@@ -254,8 +235,6 @@ export function appendEndlessChunk(
 	return notes
 }
 
-// Untimed drill chart for Note Trainer: notes only ever come from the pool the
-// player has already met (SettingsState-independent), no repeats back-to-back.
 export function buildTrainerChart(notePool: string[], count = 20) {
 	const pool = notePool.length ? notePool : ['c4', 'd4', 'e4']
 	const notes: ChartNote[] = []
@@ -281,7 +260,9 @@ export function buildTrainerChart(notePool: string[], count = 20) {
 	return notes
 }
 
-export function createSessionId(prefix: SessionConfig['modeId']) {
+// The prefix is a label for the id, not a mode: a sprint run's summary is
+// "sprint-run", which is not a mode any session runs in.
+export function createSessionId(prefix: string) {
 	return `${prefix}-${Date.now()}`
 }
 

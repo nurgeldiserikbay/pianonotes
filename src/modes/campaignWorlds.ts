@@ -1,15 +1,13 @@
 import type { BackgroundPresetId, DifficultyId } from '@/core/models'
-import { WHITE_KEYS } from '@/entities/piano'
-import { WORLD_SIZE } from '@/modes/difficultyCurve'
+import { MELODIES_BY_DIFFICULTY, getMelodyMood } from '@/modes/melodies'
 
-// Every level's melody draws from the full natural (white-key) range from level 1 —
-// a beginner should get whole tunes, not a single repeated pitch. Difficulty ramps
-// through tempo (difficultyCurve.ts), melodic complexity (campaignGenerator.ts's
-// gentle/moderate/complex motif tiers), and mechanics (chords/holds below), not by
-// rationing which notes are allowed to appear. Sharps (black keys) are the one
-// exception: they're still introduced progressively, as a genuine "harder pieces"
-// step, in worlds 8-10.
-export const FULL_NATURAL_POOL = WHITE_KEYS.map((key) => key.id)
+// Worlds are now derived from the melody library rather than hand-declared: the
+// campaign is exactly the public-domain tunes in difficulty order, grouped into
+// chapters for the level board. Adding a melody re-chapters the campaign by
+// itself, and no hand-kept list can drift out of sync with the content.
+// Eight levels a chapter. At five, a two-hundred-melody library produced forty
+// chapters, which turns the level board into a scroll with no sense of place.
+export const WORLD_SIZE = 8
 
 export interface WorldDefinition {
 	id: string
@@ -18,61 +16,102 @@ export interface WorldDefinition {
 	concept: string
 	themeId: BackgroundPresetId
 	newNoteIds: string[]
-	allowChords: boolean
-	allowHolds: boolean
 	difficulty: DifficultyId
 }
 
-const RAW_WORLDS: Omit<WorldDefinition, 'index'>[] = [
-	{ id: 'w01', title: 'First Melodies', concept: 'Slow, simple children’s tunes', themeId: 'purple-blue', newNoteIds: [], allowChords: false, allowHolds: false, difficulty: 'easy' },
-	{ id: 'w02', title: 'Gentle Tunes', concept: 'A little more movement', themeId: 'aurora', newNoteIds: [], allowChords: false, allowHolds: false, difficulty: 'easy' },
-	{ id: 'w03', title: 'Growing Confidence', concept: 'Longer melodies, steady rhythm', themeId: 'neon', newNoteIds: [], allowChords: false, allowHolds: false, difficulty: 'easy' },
-	{ id: 'w04', title: 'First Chords', concept: 'Two notes at once', themeId: 'purple-blue', newNoteIds: [], allowChords: true, allowHolds: false, difficulty: 'easy' },
-	{ id: 'w05', title: 'Holding Notes', concept: 'Long notes that sing', themeId: 'aurora', newNoteIds: [], allowChords: true, allowHolds: true, difficulty: 'normal' },
-	{ id: 'w06', title: 'Classical Sketches', concept: 'Familiar-sounding phrases', themeId: 'neon', newNoteIds: [], allowChords: true, allowHolds: true, difficulty: 'normal' },
-	{ id: 'w07', title: 'Folk & Pop', concept: 'Catchy, upbeat tunes', themeId: 'gold-stage', newNoteIds: [], allowChords: true, allowHolds: true, difficulty: 'normal' },
-	{ id: 'w08', title: 'Sharps I', concept: 'Black keys: C# and D#', themeId: 'purple-blue', newNoteIds: ['cs4', 'ds4'], allowChords: true, allowHolds: true, difficulty: 'normal' },
-	{ id: 'w09', title: 'Sharps II', concept: 'F#, G#, A#', themeId: 'aurora', newNoteIds: ['fs4', 'gs4', 'as4'], allowChords: true, allowHolds: true, difficulty: 'hard' },
-	{ id: 'w10', title: 'High Sharps', concept: 'Black keys up top', themeId: 'neon', newNoteIds: ['cs5', 'ds5', 'fs5', 'gs5', 'as5'], allowChords: true, allowHolds: true, difficulty: 'hard' },
-	{ id: 'w11', title: 'Speed & Rhythm', concept: 'Faster tempo, denser runs', themeId: 'gold-stage', newNoteIds: [], allowChords: true, allowHolds: true, difficulty: 'hard' },
-	{ id: 'w12', title: 'Grand Finale', concept: 'Every note, full speed', themeId: 'neon', newNoteIds: [], allowChords: true, allowHolds: true, difficulty: 'hard' },
+// A chapter mixes moods, so it simply borrows the character of the melody it
+// opens with.
+// Chapter names describe where the player is in the climb, not what the tunes
+// are: which melodies land in which chapter follows from the difficulty sort and
+// changes whenever the library does. A name like "Black Keys" would be a promise
+// the sort cannot keep.
+const CHAPTER_TITLES = [
+	'First Tunes',
+	'Nursery Favourites',
+	'Songs You Know',
+	'Around the Staff',
+	'Wider Reach',
+	'Old Standards',
+	'Both Hands of the Staff',
+	'Longer Phrases',
+	'Folk Songs',
+	'Across the Sea',
+	'Carols',
+	'Ballads',
+	'Sailors and Soldiers',
+	'Slow Airs',
+	'Dance Tunes',
+	'Two Pages',
+	'Sharps and Flats',
+	'Hymn Tunes',
+	'Bells and Chimes',
+	'Winter Songs',
+	'Evening Songs',
+	'Marches',
+	'The High Register',
+	'Full Pieces',
+	'Wide Leaps',
+	'Chromatic Steps',
+	'The Whole Keyboard',
+	'Long Airs',
+	'Master Class',
+	'Encore',
+	'Curtain Call',
+	'Grand Finale',
 ]
 
-export const CAMPAIGN_WORLDS: WorldDefinition[] = RAW_WORLDS.map((world, index) => ({ ...world, index }))
-
-export function getWorldById(worldId: string) {
-	return CAMPAIGN_WORLDS.find((world) => world.id === worldId)
+function difficultyForChapter(chapterIndex: number, chapterCount: number): DifficultyId {
+	const progress = chapterCount <= 1 ? 0 : chapterIndex / (chapterCount - 1)
+	if (progress < 0.34) return 'easy'
+	if (progress < 0.7) return 'normal'
+	return 'hard'
 }
 
-// Sharps are the only notes still introduced progressively. The first two of a
-// world's sharps land on its very first level (so a level's "new" batch is never
-// just one note), the rest stagger across the remaining levels.
-function getNoteIntroLevelInWorld(world: WorldDefinition, noteIndex: number) {
-	const total = world.newNoteIds.length
-	if (total <= 2 || noteIndex < 2) return 0
+// Which pitches a melody introduces that no earlier melody used. Drives the
+// "new notes" card, and now it is a fact about the content instead of a list
+// somebody has to maintain.
+const introducedByLevel: string[][] = []
+const seenLanes = new Set<string>()
 
-	const remaining = total - 2
-	const remainingIndex = noteIndex - 2
-	const span = WORLD_SIZE - 1
-	return 1 + Math.floor((remainingIndex * span) / remaining)
+MELODIES_BY_DIFFICULTY.forEach((melody) => {
+	const fresh: string[] = []
+	melody.notes.forEach((note) => {
+		if (seenLanes.has(note.lane)) return
+		seenLanes.add(note.lane)
+		fresh.push(note.lane)
+	})
+	introducedByLevel.push(fresh)
+})
+
+const chapterCount = Math.max(1, Math.ceil(MELODIES_BY_DIFFICULTY.length / WORLD_SIZE))
+
+export const CAMPAIGN_WORLDS: WorldDefinition[] = Array.from(
+	{ length: chapterCount },
+	(_, chapterIndex) => {
+		const start = chapterIndex * WORLD_SIZE
+		const melodies = MELODIES_BY_DIFFICULTY.slice(start, start + WORLD_SIZE)
+		const newNoteIds = introducedByLevel
+			.slice(start, start + WORLD_SIZE)
+			.flat()
+
+		return {
+			id: `w${String(chapterIndex + 1).padStart(2, '0')}`,
+			index: chapterIndex,
+			title: CHAPTER_TITLES[chapterIndex] ?? `Chapter ${chapterIndex + 1}`,
+			concept: melodies.map((melody) => melody.title).join(' · '),
+			themeId: getMelodyMood(melodies[0]?.id ?? ''),
+			newNoteIds,
+			difficulty: difficultyForChapter(chapterIndex, chapterCount),
+		}
+	}
+)
+
+export function getNewNotesForLevel(_worldIndex: number, _levelInWorld: number) {
+	// Kept for call-site compatibility; the per-level answer now comes straight
+	// from the melody order below.
+	return []
 }
 
-// Sharps newly introduced exactly at `levelInWorld` (0-based position within the
-// world) — drives the one-time "New notes!" tutorial toast for that level.
-export function getNewNotesForLevel(worldIndex: number, levelInWorld: number) {
-	const world = CAMPAIGN_WORLDS[worldIndex]
-	if (!world) return []
-	return world.newNoteIds.filter((_, noteIndex) => getNoteIntroLevelInWorld(world, noteIndex) === levelInWorld)
-}
-
-// The full natural range, plus whichever sharps have been introduced by the time
-// the player reaches `levelInWorld` of `worldIndex`. Drives the procedural chart
-// generator and Note Trainer's pool.
-export function getNotePoolForLevel(worldIndex: number, levelInWorld: number) {
-	const priorSharps = CAMPAIGN_WORLDS.slice(0, worldIndex).flatMap((world) => world.newNoteIds)
-	const world = CAMPAIGN_WORLDS[worldIndex]
-	const introducedThisWorld = world
-		? world.newNoteIds.filter((_, noteIndex) => getNoteIntroLevelInWorld(world, noteIndex) <= levelInWorld)
-		: []
-	return [...FULL_NATURAL_POOL, ...priorSharps, ...introducedThisWorld]
+export function getNewNotesForLevelIndex(levelIndex: number) {
+	return introducedByLevel[levelIndex] ?? []
 }

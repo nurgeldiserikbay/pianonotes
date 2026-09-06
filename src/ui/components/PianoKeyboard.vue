@@ -8,6 +8,10 @@ const props = defineProps<{
 	activeKeys: string[]
 	namingSystem: NoteNamingSystem
 	disabled?: boolean
+	// The key the melody is waiting for. Shown as a hint in the early worlds and
+	// withdrawn later — that withdrawal is the difficulty curve of a reading game,
+	// far more than note count or tempo is.
+	hintKey?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -35,7 +39,7 @@ function release(laneId: string) {
 					v-for="key in WHITE_KEYS"
 					:key="key.id"
 					class="white-key"
-					:class="{ active: activeSet.has(key.id) }"
+					:class="{ active: activeSet.has(key.id), hint: hintKey === key.id }"
 					:style="{ '--key-accent': key.color }"
 					@pointerdown.prevent="press(key.id)"
 					@pointerup.prevent="release(key.id)"
@@ -51,7 +55,7 @@ function release(laneId: string) {
 					v-for="key in BLACK_KEYS"
 					:key="key.id"
 					class="black-key"
-					:class="{ active: activeSet.has(key.id) }"
+					:class="{ active: activeSet.has(key.id), hint: hintKey === key.id }"
 					:style="{
 						'--key-accent': key.color,
 						left: `calc(${(key.whiteIndex + (key.blackOffset ?? 0.68)) / WHITE_KEYS.length * 100}% - 2.2%)`,
@@ -71,20 +75,26 @@ function release(laneId: string) {
 <style scoped lang="scss">
 .keyboard-shell {
 	position: relative;
-	padding: 0.6rem;
-	border-radius: 2rem;
-	background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(28, 18, 58, 0.46), rgba(16, 19, 34, 0.55));
-	border: 1px solid rgba(255, 255, 255, 0.16);
-	box-shadow:
-		inset 0 1px 0 rgba(255, 255, 255, 0.12),
-		0 22px 60px rgba(0, 0, 0, 0.32),
-		0 0 2.4rem rgba(122, 192, 255, 0.12);
-	backdrop-filter: blur(18px);
+	padding: 0.6rem 0.6rem 0.75rem;
+	border-radius: var(--radius-l);
+	/* The case the keys sit in. On the dark cabinet it is a darker slab with a
+	   real rim and a felt strip along the top — the keys have to look set into an
+	   instrument, not printed on the background. */
+	background: linear-gradient(180deg, #2a3260, #161c3c);
+	border: 2px solid var(--border);
+	box-shadow: var(--shadow-2), inset 0 2px 0 rgba(255, 255, 255, 0.06);
+	/* No backdrop-filter: the tray is opaque, so the blur changed nothing visually
+	   while forcing the compositor to read back the whole area behind the largest
+	   element on the play screen — one of the two things making Android stutter. */
 }
 
 .keyboard {
 	position: relative;
 	height: clamp(9rem, 27vh, 17rem);
+	/* The felt: the thin coloured line every real keyboard has where the keys
+	   disappear into the case. */
+	border-top: 3px solid color-mix(in srgb, var(--theme-accent, var(--accent)) 55%, #0a0e24);
+	padding-top: 0.35rem;
 }
 
 .white-keys {
@@ -111,19 +121,26 @@ function release(laneId: string) {
 	justify-content: center;
 	padding-bottom: 1rem;
 	border-radius: 0 0 1.15rem 1.15rem;
+	/* A real white key: white, barely shaded, with the lane colour kept to the
+	   bottom strip. Tinting the whole key made fourteen pastel keys compete with
+	   the notes on the staff. */
 	background:
 		linear-gradient(
 			180deg,
-			rgba(255, 255, 255, 0.96),
-			color-mix(in srgb, var(--key-accent) 12%, rgba(231, 238, 255, 0.92)) 55%,
-			color-mix(in srgb, var(--key-accent) 20%, rgba(205, 214, 234, 0.95))
+			#ffffff 0%,
+			#f7f8fd 46%,
+			color-mix(in srgb, var(--key-accent) 22%, #ffffff) 72%,
+			color-mix(in srgb, var(--key-accent) 62%, #ffffff) 100%
 		);
 	box-shadow:
-		inset 0 -0.55rem 0 color-mix(in srgb, var(--key-accent) 22%, rgba(165, 174, 201, 0.5)),
-		0 0.35rem 1rem rgba(0, 0, 0, 0.18);
-	color: rgba(10, 14, 28, 0.7);
-	font-size: clamp(0.75rem, 1.3vw, 0.95rem);
-	font-weight: 700;
+		inset 0 -0.15rem 0 color-mix(in srgb, var(--key-accent) 45%, #ffffff),
+		0 0.3rem 0 color-mix(in srgb, var(--key-accent) 30%, #1b1050),
+		0 0.5rem 0.9rem rgba(10, 4, 32, 0.35);
+	/* Labels are a reading aid, not the subject: quieter than the key itself so
+	   the keyboard reads as an instrument rather than a labelled diagram. */
+	color: rgba(16, 8, 44, 0.78);
+	font-size: clamp(0.68rem, 1.1vw, 0.82rem);
+	font-weight: 800;
 }
 
 .white-key::before {
@@ -132,10 +149,10 @@ function release(laneId: string) {
 	left: 0;
 	right: 0;
 	bottom: 0;
-	height: 0.3rem;
+	height: 0.42rem;
 	border-radius: 0 0 1.15rem 1.15rem;
 	background: var(--key-accent);
-	opacity: 0.55;
+	opacity: 0.95;
 }
 
 .white-key::after {
@@ -150,11 +167,49 @@ function release(laneId: string) {
 .white-key.active {
 	transform: translateY(0.25rem) scale(0.99);
 	box-shadow:
-		inset 0 -0.25rem 0 rgba(255, 255, 255, 0.12),
-		0 0 1.8rem color-mix(in srgb, var(--key-accent) 70%, transparent);
-	color: #ffffff;
+		inset 0 -0.25rem 0 rgba(255, 255, 255, 0.16),
+		0 0.1rem 0 color-mix(in srgb, var(--key-accent) 45%, #1b1050),
+		0 0 2.4rem color-mix(in srgb, var(--key-accent) 85%, transparent);
+	/* A pressed white key darkens into its lane colour, so the label has to go
+	   the other way — white text on a mid-tone tint was unreadable. */
+	color: var(--text-1);
 	background:
-		linear-gradient(180deg, rgba(255, 255, 255, 0.28), color-mix(in srgb, var(--key-accent) 64%, white) 88%);
+		linear-gradient(180deg, color-mix(in srgb, var(--key-accent) 34%, white), color-mix(in srgb, var(--key-accent) 70%, white) 88%);
+}
+
+/* The hint pulses rather than sits still: it has to be findable at a glance by a
+   beginner, without looking like the key is already pressed. Animated as opacity
+   on an overlay rather than as box-shadow on the key — a box-shadow keyframe
+   repaints the key on every frame it runs, and this one runs the whole round. */
+.white-key.hint::after,
+.black-key.hint::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	background: var(--key-accent);
+	opacity: 0.35;
+	will-change: opacity;
+	animation: key-hint 1.1s ease-in-out infinite;
+	pointer-events: none;
+}
+
+@keyframes key-hint {
+	0%,
+	100% {
+		opacity: 0.12;
+	}
+	50% {
+		opacity: 0.42;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.white-key.hint::after,
+	.black-key.hint::after {
+		animation: none;
+		opacity: 0.3;
+	}
 }
 
 .black-keys {
@@ -184,9 +239,9 @@ function release(laneId: string) {
 		inset 0 -0.55rem 0 rgba(0, 0, 0, 0.35),
 		inset 0 0.16rem 0 color-mix(in srgb, var(--key-accent) 55%, transparent),
 		0 0.35rem 1rem rgba(0, 0, 0, 0.4);
-	color: rgba(255, 255, 255, 0.82);
-	font-size: clamp(0.62rem, 0.95vw, 0.8rem);
-	font-weight: 700;
+	color: rgba(255, 255, 255, 0.66);
+	font-size: clamp(0.56rem, 0.85vw, 0.7rem);
+	font-weight: 600;
 }
 
 .black-key.active {

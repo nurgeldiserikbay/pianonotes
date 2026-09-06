@@ -1,95 +1,173 @@
-// Design tokens for the "Piano Notes" visual redesign — palette, radius scale,
-// shadows, glows and per-mode gradients. Single source of truth so every screen
-// pulls the same values instead of re-declaring one-off hex codes.
+// Design tokens for Piano Notes — the single source of truth for color, type,
+// spacing, radius, elevation and motion. Screens compose these; they never
+// declare one-off hex codes, paddings or durations of their own.
+//
+// Direction: a neon night. Deep violet ground, panels a shade lighter with a
+// visible rim, amber as the one call-to-action colour, and coloured light that
+// actually spills — the glow is part of the identity, not decoration bolted on.
+// The staff itself stays white paper: a clef and a sharp sign are small ink
+// glyphs and read best that way, and the white sheet against the violet is what
+// makes the play screen look lit.
+//
+// Two things carry the whole look and must not be diluted:
+//   1. Edges. Every surface has a rim and a hard offset shadow, and every button
+//      stands on a solid edge it sinks onto when pressed.
+//   2. Glow. Accent-coloured surfaces cast their own colour; stars, the
+//      playhead, a pressed key and the primary button all bloom.
+// 80% calm interface + 20% excitement on interaction.
 
 :root {
-	// Per-mode identity colors
-	--mode-campaign: #ffc94d;
-	--mode-campaign-deep: #ff8f3d;
-	--mode-time: #4dd0ff;
-	--mode-time-deep: #2f8bff;
-	--mode-endless: #b56cff;
-	--mode-endless-deep: #8a3dff;
-	--mode-trainer: #4dff9b;
-	--mode-trainer-deep: #22cf7a;
-	--mode-records: #ff8a3d;
-	--mode-records-deep: #ff5f2d;
-	--mode-settings: #aab3d1;
-	--mode-settings-deep: #7d87ad;
+	// ── Base surfaces ───────────────────────────────────────────────────────
+	// Deep indigo, not black: black flattens the accents and makes the paper
+	// sheet glare. Three steps only — the ground, the well behind panels, and the
+	// panel itself — so depth comes from borders and offsets rather than from a
+	// dozen barely-different greys.
+	--bg-base: #1a1150;
+	--bg-deep: #0f0930;
+	// A third step, for the panel inside a panel (stat tiles, list rows).
+	--bg-sunken: #150d40;
+	--surface-1: rgba(255, 255, 255, 0.06);
+	--surface-2: rgba(255, 255, 255, 0.11);
+	--surface-raised: #241a63;
+	// A panel is never one colour: it lights from the top edge down, the way a
+	// moulded surface does. These two are the ends of that ramp.
+	--panel-top: #2e2278;
+	--panel-bottom: #1d1450;
+	// The same ramp one step brighter, for a panel that has to sit *on* another.
+	--panel-top-lifted: #382a8e;
+	--panel-bottom-lifted: #241a63;
+
+	// Borders are visible on purpose. Every panel, chip and key has one.
+	--border-soft: rgba(168, 140, 255, 0.16);
+	--border: rgba(178, 152, 255, 0.26);
+	--border-strong: rgba(196, 172, 255, 0.5);
+
+	// ── Text ────────────────────────────────────────────────────────────────
+	// Three tiers only. Anything below --text-3 fails contrast on this ground.
+	--text-1: #f6f2ff;
+	--text-2: rgba(246, 242, 255, 0.8);
+	--text-3: rgba(246, 242, 255, 0.64);
+	// Dark ink on a bright accent: yellow and green accents cannot carry white
+	// text at this saturation without failing contrast.
+	--text-on-accent: #241033;
+	// Ink for anything drawn on the paper sheet, where the dark palette inverts.
+	--text-on-paper: #172033;
+
+	// ── Per-mode identity colors ────────────────────────────────────────────
+	// Each mode owns one accent; the icon, hover glow and progress bar of that
+	// mode all derive from it, so identity comes from color + icon rather than
+	// from a separate illustration per card.
+	// Saturated on the dark ground, with a deeper twin used for the solid bottom
+	// edge under every raised control — that edge is what makes a button look
+	// pressable rather than printed.
+	--mode-campaign: #ff9d3c;
+	--mode-campaign-deep: #c25e07;
+	--mode-time: #45d7ff;
+	--mode-time-deep: #148ec4;
+	--mode-endless: #b985ff;
+	--mode-endless-deep: #7038d6;
+	--mode-trainer: #57e6a8;
+	--mode-trainer-deep: #16a173;
+	--mode-records: #ffd24a;
+	--mode-records-deep: #c68f0c;
+	--mode-settings: #a3aeeb;
+	--mode-settings-deep: #6270b4;
+
+	// Neutral accent used by shared UI (focus rings, primary buttons) when no
+	// mode context applies.
+	// Amber is the app's "press me": Play, Next, Listen, Save. Nothing else may
+	// use it, or the eye stops finding the next action.
+	--accent: #ffc23a;
+	--accent-deep: #d1830a;
+
+	// Semantic feedback
+	--good: #57e6a8;
+	--warn: #ffd24a;
+	--bad: #ff6b8b;
+	// The same three, mixed for use as ink on the paper sheet.
+	--good-ink: #0f9a67;
+	--warn-ink: #c1830a;
+	--bad-ink: #bd2f45;
 
 	// Grade letter colors (S/A/B/C/D)
-	--grade-s: #ffd54f;
-	--grade-a: #ff6fd8;
-	--grade-b: #7be495;
-	--grade-c: #59b9ff;
-	--grade-d: #9aa3bd;
+	--grade-s: #ffd24a;
+	--grade-a: #ff6bd6;
+	--grade-b: #57e6a8;
+	--grade-c: #45d7ff;
+	--grade-d: #a3aeeb;
 
-	// Radius scale — bigger containers get bigger radii, nested/small elements
-	// always step down at least one tier so corners never look "the same size"
-	// on wildly different-sized boxes.
-	--radius-xs: 6px;
-	--radius-s: 12px;
-	--radius-m: 18px;
-	--radius-l: 24px;
-	--radius-xl: 32px;
+	// ── Spacing scale ───────────────────────────────────────────────────────
+	// 4px base. Layouts pick from this ladder so gaps stay in a rhythm instead
+	// of drifting between 0.55rem / 0.7rem / 0.85rem as they did before.
+	--space-1: 0.25rem;
+	--space-2: 0.5rem;
+	--space-3: 0.75rem;
+	--space-4: 1rem;
+	--space-5: 1.5rem;
+	--space-6: 2rem;
+	--space-7: 3rem;
+
+	// ── Typography ──────────────────────────────────────────────────────────
+	--text-xs: 0.7rem;
+	--text-sm: 0.8rem;
+	--text-md: 0.92rem;
+	--text-lg: 1.1rem;
+	--text-xl: 1.4rem;
+	--text-display: clamp(1.6rem, 4.4vw, 2.4rem);
+
+	--weight-regular: 500;
+	--weight-bold: 700;
+	--weight-black: 800;
+
+	--tracking-caps: 0.12em;
+
+	// ── Radius scale ────────────────────────────────────────────────────────
+	// Nested elements always step down at least one tier so corners never look
+	// the same size on wildly different-sized boxes.
+	// Tightened one full step. Corners this round read as soft furniture; a game
+	// wants a chamfer, not a pillow.
+	--radius-xs: 4px;
+	--radius-s: 8px;
+	--radius-m: 12px;
+	--radius-l: 16px;
+	--radius-xl: 22px;
 	--radius-round: 999px;
 
-	// Shadow presets (depth)
-	--shadow-1: 0 4px 14px rgba(0, 0, 0, 0.22);
-	--shadow-2: 0 12px 32px rgba(0, 0, 0, 0.28);
-	--shadow-3: 0 24px 60px rgba(0, 0, 0, 0.32);
+	// ── Elevation ───────────────────────────────────────────────────────────
+	// Hard offsets, no blur. A blurred shadow on a dark ground turns to mud; a
+	// solid one reads as a physical edge at any size, which is exactly the look
+	// a child recognises as "a thing I can press".
+	--shadow-1: 0 2px 0 rgba(10, 4, 32, 0.55);
+	--shadow-2: 0 4px 0 rgba(10, 4, 32, 0.6);
+	--shadow-3: 0 6px 0 rgba(10, 4, 32, 0.65);
+	--shadow-float: 0 10px 0 rgba(10, 4, 32, 0.6), 0 26px 52px rgba(6, 2, 22, 0.6);
+	// Coloured light. `--glow-accent` is the amber bloom under the primary
+	// button; `--glow-mode` reads whatever accent the surrounding mode set.
+	--glow-accent: 0 0 1.6rem color-mix(in srgb, var(--accent) 45%, transparent);
+	--glow-mode: 0 0 1.4rem color-mix(in srgb, var(--accent-1, var(--accent)) 40%, transparent);
+	// A one-pixel highlight along the top of a panel: the cheap trick that makes
+	// a flat fill look moulded rather than printed.
+	--sheen: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
 
-	// Glossy top-left highlight used on saturated cards/buttons — the toy-like
-	// "shine" from the reference sheet's button/card states.
-	--shine: linear-gradient(125deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 42%);
+	// ── Motion ──────────────────────────────────────────────────────────────
+	// Fast enough never to delay the player; one shared easing curve.
+	--dur-1: 120ms;
+	--dur-2: 200ms;
+	--dur-3: 320ms;
+	--ease: cubic-bezier(0.2, 0.7, 0.3, 1);
 
-	// 3D asset URLs (Stitch renders in public/img/stitch, served at /img/stitch).
-	// Central so a re-export or re-crop only touches this block.
-	--asset-bg-scene: url('/img/stitch/bg-menu.jpg');
-	--asset-mascot: url('/img/stitch/mascot-cat-wizard.png');
-	--asset-star-gold: url('/img/stitch/star-gold.png');
-	--asset-treble: url('/img/stitch/treble-clef.png');
-	--asset-notes-group: url('/img/stitch/notes-group.png');
-
-	// Per-mode glossy 3D note asset (one recognizable color per mode identity).
-	--note-campaign: url('/img/stitch/note-yellow.png');
-	--note-time: url('/img/stitch/note-cyan.png');
-	--note-endless: url('/img/stitch/note-purple.png');
-	--note-trainer: url('/img/stitch/note-green.png');
-	--note-records: url('/img/stitch/note-orange.png');
-	--note-settings: url('/img/stitch/note-white.png');
-
-	// Standard drop-shadow for a transparent 3D render placed over a scene, so it
-	// reads as a physical toy piece rather than a pasted sticker.
-	--art-shadow: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.4));
+	// ── Layout ──────────────────────────────────────────────────────────────
+	--screen-max: 78rem;
 }
 
-// Glow utility — soft colored halo behind an element, tinted per mode/grade.
-@mixin glow($color, $alpha: 0.5, $size: 1.6rem) {
-	box-shadow: 0 0 $size color-mix(in srgb, $color $alpha * 100%, transparent);
-}
+// Style primitives (panel, lift, glow, caps) live in `_mixins.scss` — this file
+// stays pure custom properties so it can be emitted exactly once.
 
-// Per-mode gradient utility classes — used by mode cards, HUD accents, buttons.
-.grad-campaign {
-	background: linear-gradient(150deg, var(--mode-campaign) 0%, var(--mode-campaign-deep) 100%);
-}
-
-.grad-time {
-	background: linear-gradient(150deg, var(--mode-time) 0%, var(--mode-time-deep) 100%);
-}
-
-.grad-endless {
-	background: linear-gradient(150deg, var(--mode-endless) 0%, var(--mode-endless-deep) 100%);
-}
-
-.grad-trainer {
-	background: linear-gradient(150deg, var(--mode-trainer) 0%, var(--mode-trainer-deep) 100%);
-}
-
-.grad-records {
-	background: linear-gradient(150deg, var(--mode-records) 0%, var(--mode-records-deep) 100%);
-}
-
-.grad-settings {
-	background: linear-gradient(150deg, var(--mode-settings) 0%, var(--mode-settings-deep) 100%);
+// Per-mode accent assignment. A screen adds `.mode-campaign` and every child
+// reads --accent-1 / --accent-2 from it, so a mode's identity is one class.
+@each $mode in campaign, time, endless, trainer, records, settings {
+	.mode-#{$mode} {
+		--accent-1: var(--mode-#{$mode});
+		--accent-2: var(--mode-#{$mode}-deep);
+	}
 }

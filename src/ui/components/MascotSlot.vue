@@ -1,23 +1,37 @@
 <script setup lang="ts">
-// The mascot is a single 3D render (Stitch: wizard tuxedo cat). Every screen shows
-// the mascot through this one component, so a re-crop or a different pose only
-// touches this file. `variant` lets a screen opt into an alternate pose without
-// each caller hardcoding a path.
-withDefaults(defineProps<{ size?: string; variant?: 'wizard' | 'stage' | 'drummer' }>(), {
-	size: '6rem',
-	variant: 'wizard',
-})
+// Every screen shows the mascot through this one component, so a new pose set
+// only touches this file.
+//
+// Poses are looked up in /img/mascot/ first — that is where hand-drawn artwork
+// is meant to land, one PNG per pose, transparent, square. Anything missing
+// falls back to the render the app already ships, so dropping in one file at a
+// time works and a half-finished set never breaks a screen.
+import { ref } from 'vue'
 
-const SRC: Record<string, string> = {
-	wizard: '/img/stitch/mascot-cat-wizard.png',
-	stage: '/img/stitch/mascot-cat-stage.png',
-	drummer: '/img/stitch/mascot-cat-drummer.png',
+const props = withDefaults(
+	defineProps<{ size?: string; variant?: 'idle' | 'happy' | 'cheer' | 'thinking' | 'wink' }>(),
+	{ size: '6rem', variant: 'idle' }
+)
+
+const ART = `/img/mascot/cat-${props.variant}.png`
+const FALLBACK: Record<string, string> = {
+	idle: '/img/stitch/mascot-cat-wizard.png',
+	happy: '/img/stitch/mascot-cat-stage.png',
+	cheer: '/img/stitch/mascot-cat-stage.png',
+	thinking: '/img/stitch/mascot-cat-wizard.png',
+	wink: '/img/stitch/mascot-cat-drummer.png',
+}
+
+const src = ref(ART)
+const onError = () => {
+	const fallback = FALLBACK[props.variant] ?? FALLBACK.idle
+	if (src.value !== fallback) src.value = fallback
 }
 </script>
 
 <template>
 	<div class="mascot-slot" :style="{ width: size, height: size }">
-		<img class="mascot-art" :src="SRC[variant]" alt="" draggable="false" />
+		<img class="mascot-art" :src="src" alt="" draggable="false" @error="onError" />
 	</div>
 </template>
 
