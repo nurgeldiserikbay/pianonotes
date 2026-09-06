@@ -1,9 +1,14 @@
 # Piano Notes Mobile Architecture
 
+> Behaviour note: `PRODUCT_DIRECTION.md` and `STYLE_BRIEF.md` are authoritative.
+> Campaign uses a static staff and player-paced input. References below to note
+> motion, judgement windows and hold notes describe an earlier prototype and
+> must not be reintroduced into Campaign.
+
 ## Product Goal
 Build a polished but realistic mobile rhythm game that combines:
 - CSS-based app UI for menus, HUD, cards, settings, and results
-- Pixi.js for the gameplay scene, note motion, glow, particles, and hit feedback
+- Pixi.js for staff rendering, notation, restrained particles, and hit feedback
 - TypeScript domain modules for charts, scoring, storage, ads, and session state
 
 The product targets a premium casual music-game feel without relying on heavy art production or non-performant effects.
@@ -20,8 +25,7 @@ The product targets a premium casual music-game feel without relying on heavy ar
 - Menu UI is portrait-friendly and card-based
 - Gameplay is landscape-only
 - Gameplay layout:
-  - top: staff and falling notes
-  - middle: hit line and judgement feedback
+  - top and middle: static staff, active note and reading feedback
   - bottom: piano keyboard with 2 octaves
 
 ## Architecture Layers
@@ -93,6 +97,9 @@ Stored per mode:
 - `survivalTime` for endless
 
 ### Note Runtime Model
+
+This is a legacy model from the timing prototype. It is retained only as
+historical context and is not the basis of current Campaign behaviour.
 - `laneId`
 - `timeMs`
 - `durationMs`
