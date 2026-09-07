@@ -175,6 +175,49 @@ const activeRecordGroup = computed(
 	() => groupedRecords.value.find((group) => group.id === selectedRecordsTab.value) ?? groupedRecords.value[0]
 )
 
+// The four facts worth leading the Records screen with. Two are about the mode
+// on screen, two are about the player overall — which is why they are labelled
+// rather than left to be guessed from a number.
+const recordHighlights = computed(() => {
+	const items = activeRecordGroup.value.items
+	const best = (pick: (record: (typeof items)[number]) => number) =>
+		items.length ? Math.max(...items.map(pick)) : null
+	const cleared = Object.values(appStore.campaignProgress).filter(
+		(progress) => (progress?.bestStars ?? 0) > 0
+	).length
+
+	return [
+		{
+			id: 'score',
+			tone: 'accent-endless',
+			label: 'Best score',
+			value: best((record) => record.score),
+			format: (value: number) => `${value}`,
+		},
+		{
+			id: 'accuracy',
+			tone: 'accent-time',
+			label: 'Best accuracy',
+			value: best((record) => record.accuracy),
+			format: (value: number) => `${value.toFixed(1)}%`,
+		},
+		{
+			id: 'streak',
+			tone: 'accent-campaign',
+			label: 'Longest streak',
+			value: appStore.streak.best || null,
+			format: (value: number) => `${value} ${value === 1 ? 'day' : 'days'}`,
+		},
+		{
+			id: 'cleared',
+			tone: 'accent-trainer',
+			label: 'Melodies cleared',
+			value: cleared || null,
+			format: (value: number) => `${value}/${MELODIES_BY_DIFFICULTY.length}`,
+		},
+	]
+})
+
 // Per-difficulty campaign-world identity, expressed as a mode accent class
 // (green → cyan → purple) rather than a separate illustration per world. The
 // class feeds --accent-1/--accent-2 to everything inside the world block.
@@ -349,6 +392,7 @@ const isNewBestAccuracy = computed(() => {
 							@error="logo.onError"
 						/>
 						<span v-else>Piano Notes</span>
+						<span class="menu-tagline">Play · Learn · Grow</span>
 					</h1>
 
 					<div class="hud-right">
@@ -418,6 +462,7 @@ const isNewBestAccuracy = computed(() => {
 								<strong>By Ear</strong>
 								<span>Listen, then write the notes</span>
 							</span>
+							<span class="mode-card-go" aria-hidden="true">›</span>
 						</button>
 
 						<button class="mode-card mode-time" @click="appStore.startSprint">
@@ -426,6 +471,7 @@ const isNewBestAccuracy = computed(() => {
 								<strong>Sprint</strong>
 								<span>{{ echoBest || sprintBest ? `Best: ${sprintBest} melodies` : 'One run, no stops' }}</span>
 							</span>
+							<span class="mode-card-go" aria-hidden="true">›</span>
 						</button>
 
 						<button class="mode-card mode-records" @click="appStore.openTunes">
@@ -440,6 +486,7 @@ const isNewBestAccuracy = computed(() => {
 									}}
 								</span>
 							</span>
+							<span class="mode-card-go" aria-hidden="true">›</span>
 						</button>
 
 					<!-- The mascot fills the column's tail with the one line of advice
@@ -542,6 +589,24 @@ const isNewBestAccuracy = computed(() => {
 					</button>
 				</div>
 
+				<!-- Four facts before the list: the reference leads with what the
+				     player has achieved, and a table of five rows does not say that
+				     at a glance. -->
+				<div class="record-highlights">
+					<div
+						v-for="highlight in recordHighlights"
+						:key="highlight.id"
+						class="highlight-tile"
+						:class="highlight.tone"
+					>
+						<span class="eyebrow">{{ highlight.label }}</span>
+						<strong class="metric">{{
+							highlight.value === null ? '—' : highlight.format(highlight.value)
+						}}</strong>
+						<span v-if="highlight.value === null" class="highlight-empty">No record yet</span>
+					</div>
+				</div>
+
 				<div class="glass-card records-panel">
 					<div class="section-head">
 						<strong>{{ activeRecordGroup.title }}</strong>
@@ -567,15 +632,21 @@ const isNewBestAccuracy = computed(() => {
 						</div>
 					</div>
 					<div v-else class="empty-state">
-						<span class="empty-state-art"><IconMusic /></span>
+						<MascotSlot size="6.5rem" variant="idle" />
 						<p class="empty-copy">
-							No {{ activeRecordGroup.title }} records yet — play a run to see it here.
+							No {{ activeRecordGroup.title }} records yet — play a run and your best
+							lands here.
 						</p>
+						<button class="primary-btn" @click="appStore.startContinue">
+							<IconPlay class="btn-icon" />
+							Play Campaign
+						</button>
 					</div>
 				</div>
 			</section>
 
 			<section v-else-if="screen === 'settings'" class="screen stack centered">
+				<h3 class="settings-heading"><IconSound class="settings-heading-icon" /> Sound</h3>
 				<div class="settings-grid">
 					<button
 						class="toggle-card accent-time"
@@ -589,8 +660,12 @@ const isNewBestAccuracy = computed(() => {
 						<strong class="toggle-card-label">Sound</strong>
 						<span class="switch" :class="{ on: appStore.settings.soundEnabled }"><span class="switch-knob" /></span>
 					</button>
-					<!-- No Music toggle: the project ships note samples only, so the switch
-					     controlled nothing. It comes back the day there is a track to play. -->
+				</div>
+
+				<!-- No Music toggle: the project ships note samples only, so the switch
+				     controlled nothing. It comes back the day there is a track to play. -->
+				<h3 class="settings-heading"><IconGlow class="settings-heading-icon" /> Display</h3>
+				<div class="settings-grid">
 					<button
 						class="toggle-card accent-campaign"
 						@click="
@@ -627,6 +702,10 @@ const isNewBestAccuracy = computed(() => {
 						<strong class="toggle-card-label">HUD Align</strong>
 						<span class="switch" :class="{ on: appStore.settings.leftHandedHud }"><span class="switch-knob" /></span>
 					</button>
+				</div>
+
+				<h3 class="settings-heading"><IconSprint class="settings-heading-icon" /> Learning</h3>
+				<div class="settings-grid">
 					<button
 						class="toggle-card accent-campaign"
 						@click="
@@ -1586,6 +1665,16 @@ const isNewBestAccuracy = computed(() => {
 	}
 }
 
+/* A narrow window needs the mascot dropped sooner than a wide one: the mode
+   cards wrap their subtitles at 640px, so the column is taller at the same
+   height and the menu ran 11px past the viewport at 640×430 — just above where
+   the tier above stops. */
+@media (orientation: landscape) and (max-width: 720px) and (max-height: 470px) {
+	.menu-screen .menu-host {
+		display: none;
+	}
+}
+
 /* Phone polish: keep the same sparse structure, but make the few interactive
    surfaces read immediately under a thumb and in bright ambient light. */
 @media (orientation: landscape) and (max-height: 420px) {
@@ -1712,9 +1801,26 @@ const isNewBestAccuracy = computed(() => {
 	font-size: var(--text-lg);
 }
 
-.hero-play-icon {
+.hero-play-icon,
+.btn-icon {
 	width: 1.1rem;
 	height: 1.1rem;
+}
+
+/* Empty states read top to bottom: the mascot, then what is missing, then the
+   one thing to do about it. */
+.empty-state {
+	display: grid;
+	justify-items: center;
+	gap: 0.5rem;
+	padding: var(--space-3) 0;
+}
+
+.empty-state .primary-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	width: auto;
 }
 
 /* The road: this level and the four after it. Progress as a path is the one
@@ -1960,6 +2066,125 @@ const isNewBestAccuracy = computed(() => {
 	grid-template-columns: auto minmax(0, 1fr) auto auto;
 	align-items: center;
 	gap: var(--space-3);
+}
+
+/* A card that goes somewhere says so. The chevron sits at the end of the row and
+   leans in on press, which is the whole animation it needs. */
+.mode-card-go {
+	margin-left: auto;
+	padding-left: 0.35rem;
+	color: color-mix(in srgb, var(--accent-1, var(--accent)) 75%, var(--text-3));
+	font-size: 1.5rem;
+	font-weight: var(--weight-black);
+	line-height: 1;
+	transition: transform var(--dur-1) var(--ease);
+}
+
+.mode-card:hover .mode-card-go,
+.mode-card:active .mode-card-go {
+	transform: translateX(2px);
+}
+
+/* The wordmark's own line, small and quiet under it. */
+.menu-tagline {
+	display: block;
+	margin-top: 0.15rem;
+	color: var(--text-3);
+	font-size: var(--text-xs);
+	font-weight: var(--weight-bold);
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+}
+
+/* The tagline costs the HUD a line, and the menu has no line to spare below
+   about 470px: at 430px tall it pushed the layout 23px past the viewport. It is
+   the first thing to go, being the one element on the screen that says nothing
+   the player needs. */
+@media (orientation: landscape) and (max-height: 480px) {
+	.menu-tagline {
+		display: none;
+	}
+
+	/* The chevron is a hint, not information, and at this height its glyph was
+	   tall enough to drive the card row and push the menu past the viewport. */
+	.mode-card-go {
+		display: none;
+	}
+}
+
+/* Settings are grouped rather than listed: one heading per thing the player is
+   actually changing — what they hear, what they are taught, what they see. */
+.settings-heading {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	width: 100%;
+	max-width: 48rem;
+	margin: 0 auto;
+	color: var(--text-2);
+	font-size: var(--text-sm);
+	font-weight: var(--weight-black);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.settings-heading-icon {
+	width: 0.95rem;
+	height: 0.95rem;
+	color: var(--accent);
+}
+
+@media (max-height: 480px) {
+	.settings-heading {
+		font-size: var(--text-xs);
+	}
+}
+
+/* Four coloured tiles across the top of Records, each carrying its own accent
+   so the row reads as four different achievements rather than one table. */
+.record-highlights {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+	gap: var(--space-2);
+	width: 100%;
+}
+
+.highlight-tile {
+	@include panel-lifted;
+	display: grid;
+	gap: 0.15rem;
+	padding: 0.6rem 0.75rem;
+	text-align: center;
+	border-color: color-mix(in srgb, var(--accent-1, var(--accent)) 40%, var(--border));
+	box-shadow: var(--shadow-1), var(--sheen),
+		inset 0 -2px 0 color-mix(in srgb, var(--accent-1, var(--accent)) 30%, transparent);
+}
+
+.highlight-tile .metric {
+	color: var(--accent-1, var(--accent));
+	font-size: 1.35rem;
+	line-height: 1.1;
+}
+
+.highlight-empty {
+	color: var(--text-3);
+	font-size: var(--text-xs);
+}
+
+/* Short screens: the tiles are the summary, so they stay, but they stop being
+   three lines tall each. */
+@media (max-height: 560px) {
+	.highlight-tile {
+		padding: 0.35rem 0.5rem;
+	}
+
+	.highlight-tile .metric {
+		font-size: 1.05rem;
+	}
+
+	.highlight-empty {
+		display: none;
+	}
 }
 
 /* Chapters sit side by side the way the reference shows them, not one to a
@@ -2241,11 +2466,16 @@ const isNewBestAccuracy = computed(() => {
 
 /* Each settings row only declares which accent it belongs to; the badge styling
    above does the rest, so there is one badge design instead of six. */
-.toggle-card.accent-time { --accent-1: var(--mode-time); --accent-2: var(--mode-time-deep); }
-.toggle-card.accent-endless { --accent-1: var(--mode-endless); --accent-2: var(--mode-endless-deep); }
-.toggle-card.accent-campaign { --accent-1: var(--mode-campaign); --accent-2: var(--mode-campaign-deep); }
-.toggle-card.accent-records { --accent-1: var(--mode-records); --accent-2: var(--mode-records-deep); }
-.toggle-card.accent-trainer { --accent-1: var(--mode-trainer); --accent-2: var(--mode-trainer-deep); }
+.toggle-card.accent-time,
+.highlight-tile.accent-time { --accent-1: var(--mode-time); --accent-2: var(--mode-time-deep); }
+.toggle-card.accent-endless,
+.highlight-tile.accent-endless { --accent-1: var(--mode-endless); --accent-2: var(--mode-endless-deep); }
+.toggle-card.accent-campaign,
+.highlight-tile.accent-campaign { --accent-1: var(--mode-campaign); --accent-2: var(--mode-campaign-deep); }
+.toggle-card.accent-records,
+.highlight-tile.accent-records { --accent-1: var(--mode-records); --accent-2: var(--mode-records-deep); }
+.toggle-card.accent-trainer,
+.highlight-tile.accent-trainer { --accent-1: var(--mode-trainer); --accent-2: var(--mode-trainer-deep); }
 .toggle-card.accent-settings { --accent-1: var(--mode-settings); --accent-2: var(--mode-settings-deep); }
 
 .segmented {
