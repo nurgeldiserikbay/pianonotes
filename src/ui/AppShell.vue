@@ -463,7 +463,7 @@ const isNewBestAccuracy = computed(() => {
 			     accent, a progress bar, and a grid of compact level nodes. 25 levels
 			     fit in a block the player can scan at a glance instead of scrolling
 			     300 identical rows. -->
-			<section v-else-if="screen === 'campaign-levels'" class="screen stack">
+			<section v-else-if="screen === 'campaign-levels'" class="screen campaign-screen">
 				<div
 					v-for="world in appStore.worldsWithProgress"
 					:key="world.id"
@@ -471,7 +471,7 @@ const isNewBestAccuracy = computed(() => {
 					:class="DIFFICULTY_MODE[world.difficulty]"
 				>
 					<header class="world-head">
-						<MoodScene :mood="world.themeId" :cover="world.coverId" class="world-scene" />
+						<span class="world-number">{{ world.index + 1 }}</span>
 						<div class="world-text">
 							<strong class="world-title">{{ world.title }}</strong>
 							<span class="world-concept">{{ world.concept }}</span>
@@ -490,6 +490,8 @@ const isNewBestAccuracy = computed(() => {
 							</span>
 						</div>
 					</header>
+
+					<MoodScene :mood="world.themeId" :cover="world.coverId" class="world-scene" />
 
 					<div v-if="world.newNoteIds.length" class="note-chips">
 						<span class="note-chips-label">New notes</span>
@@ -1958,6 +1960,66 @@ const isNewBestAccuracy = computed(() => {
 	grid-template-columns: auto minmax(0, 1fr) auto auto;
 	align-items: center;
 	gap: var(--space-3);
+}
+
+/* Chapters sit side by side the way the reference shows them, not one to a
+   screen: with a painted banner in every card a single column made one chapter
+   fill the viewport, and there are thirty-two of them. The columns collapse to
+   one when there is no room for two. */
+.screen.campaign-screen {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr));
+	align-content: start;
+	gap: var(--space-3);
+}
+
+/* The chapter's own banner. It never had a rule: the drawn SVG had no intrinsic
+   width so the auto grid column collapsed around it, and a real painting has one
+   — which took the entire row and squeezed the title into a column of single
+   words. It is sized here on purpose now. */
+.world-scene {
+	width: 100%;
+	aspect-ratio: 16 / 6;
+	border-radius: var(--radius-m);
+	border: 1px solid var(--border-soft);
+}
+
+/* On a phone the banner is the first thing that has to give: at its desktop
+   proportion one chapter filled the whole viewport and the level buttons — the
+   only thing on this screen you can press — fell below the fold. The melody list
+   keeps one line, which still says what the chapter is without taking three. */
+@media (max-height: 560px) {
+	.world-scene {
+		aspect-ratio: auto;
+		height: 5rem;
+	}
+
+	.world-concept {
+		display: -webkit-box;
+		-webkit-line-clamp: 1;
+		line-clamp: 1;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+}
+
+/* The chapter's number, the way the reference leads each card. */
+.world-number {
+	flex-shrink: 0;
+	display: grid;
+	place-items: center;
+	width: 2.1rem;
+	height: 2.1rem;
+	border-radius: var(--radius-round);
+	background: linear-gradient(
+		180deg,
+		color-mix(in srgb, var(--accent-1, var(--accent)) 30%, transparent),
+		transparent
+	);
+	border: 1px solid color-mix(in srgb, var(--accent-1, var(--accent)) 55%, transparent);
+	color: var(--text-1);
+	font-weight: var(--weight-black);
+	font-size: var(--text-md);
 }
 
 .world-text {

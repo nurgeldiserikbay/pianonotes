@@ -20,11 +20,14 @@ export interface WorldDefinition {
 	difficulty: DifficultyId
 }
 
-// The six painted covers, in the order they were drawn: a moonlit meadow at one
-// end and a lit concert hall at the other. They are a climb, not a set of
-// interchangeable moods, so they are spread across however many chapters the
-// library currently makes rather than cycled every six. A player who reaches the
-// last chapter arrives at the finale; one still on tune three is still outdoors.
+// The six painted covers, in the order they were drawn.
+//
+// They were spread across the whole campaign at first, so that the art climbed
+// from a moonlit meadow to a lit concert hall as the player did. With thirty-two
+// chapters and six covers that gives each cover a run of five, and the first
+// thing anyone sees is five chapters wearing the same picture. Variety where the
+// player is beats a progression they would have to play for hours to notice, so
+// they cycle.
 export const CHAPTER_COVERS = [
 	'01-first-tunes',
 	'02-nursery-favourites',
@@ -36,10 +39,8 @@ export const CHAPTER_COVERS = [
 
 export type ChapterCoverId = (typeof CHAPTER_COVERS)[number]
 
-function coverForChapter(chapterIndex: number, totalChapters: number): ChapterCoverId {
-	if (totalChapters <= 1) return CHAPTER_COVERS[0]
-	const step = Math.floor((chapterIndex / totalChapters) * CHAPTER_COVERS.length)
-	return CHAPTER_COVERS[Math.min(step, CHAPTER_COVERS.length - 1)]
+function coverForChapter(chapterIndex: number): ChapterCoverId {
+	return CHAPTER_COVERS[Math.max(0, chapterIndex) % CHAPTER_COVERS.length]
 }
 
 // A chapter mixes moods, so it simply borrows the character of the melody it
@@ -123,7 +124,7 @@ export const CAMPAIGN_WORLDS: WorldDefinition[] = Array.from(
 			title: CHAPTER_TITLES[chapterIndex] ?? `Chapter ${chapterIndex + 1}`,
 			concept: melodies.map((melody) => melody.title).join(' · '),
 			themeId: getMelodyMood(melodies[0]?.id ?? ''),
-			coverId: coverForChapter(chapterIndex, chapterCount),
+			coverId: coverForChapter(chapterIndex),
 			newNoteIds,
 			difficulty: difficultyForChapter(chapterIndex, chapterCount),
 		}
