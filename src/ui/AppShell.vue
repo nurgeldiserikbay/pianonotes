@@ -10,7 +10,7 @@ import { useAppStore } from '@/ui/stores/appStore'
 import { assetUrl } from '@/utils/assetUrl'
 import { useDropInArt } from '@/ui/useDropInArt'
 import { MELODIES_BY_DIFFICULTY, getMelodyMood } from '@/modes/melodies'
-import { chapterCoverForLevelIndex } from '@/modes/campaignWorlds'
+import { chapterCoverForLevelIndex, getNewNotesForLevelIndex } from '@/modes/campaignWorlds'
 
 import IconMusic from '@/assets/icons/music.svg'
 import IconSound from '@/assets/icons/sound.svg'
@@ -227,6 +227,23 @@ const continueMood = computed(() =>
 const continueCover = computed(() =>
 	appStore.continueLevel ? chapterCoverForLevelIndex(appStore.continueLevel.index ?? 0) : undefined
 )
+
+// The pitches this level was the first to ask for. Empty for most levels, and
+// for every non-campaign mode, in which case the line simply does not appear.
+const resultLearned = computed(() => {
+	if (appStore.lastResult?.modeId !== 'campaign') return []
+	const levelId = appStore.lastResult?.levelId
+	if (!levelId) return []
+	const index = MELODIES_BY_DIFFICULTY.findIndex((melody) => melody.id === levelId)
+	return index < 0 ? [] : getNewNotesForLevelIndex(index).map((lane) => lane.toUpperCase())
+})
+
+// "C5 and D5", "C5, D5 and E5" — joining on " and " throughout reads as a
+// stutter the moment a level introduces three notes.
+function formatList(items: string[]): string {
+	if (items.length <= 1) return items[0] ?? ''
+	return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+}
 
 const resultCover = computed(() => {
 	if (appStore.lastResult?.modeId !== 'campaign') return undefined
@@ -690,14 +707,15 @@ const isNewBestAccuracy = computed(() => {
 				</div>
 			</section>
 
-			<section v-else-if="screen === 'result'" class="screen stack">
+			<section v-else-if="screen === 'result'" class="screen result-screen">
+				<!-- The chapter's art stands behind the whole screen rather than in a
+				     strip inside the card: what the player has reached is the reward,
+				     and the card is a panel in front of it. -->
+				<MoodScene :mood="resultMood" :cover="resultCover" class="result-backdrop" />
+				<span class="result-veil" aria-hidden="true" />
+
+				<div class="result-stage">
 				<div class="result-card">
-					<MoodScene :mood="resultMood" :cover="resultCover" class="result-scene" />
-					<MascotSlot
-						class="result-mascot"
-						size="5.5rem"
-						:variant="(appStore.lastResult?.stars ?? 0) >= 3 ? 'cheer' : 'retry'"
-					/>
 					<div class="result-header">
 						<StarRow
 							v-if="appStore.lastResult?.modeId === 'campaign'"
@@ -713,6 +731,12 @@ const isNewBestAccuracy = computed(() => {
 					<!-- Why the round ended, before any numbers: a failed run and a clean
 					     one otherwise look identical at a glance. -->
 					<p class="result-verdict" :class="resultOutcome.tone">{{ resultOutcome.label }}</p>
+
+					<!-- What this level actually taught, named. A percentage says how
+					     well it went; this says what the player now knows. -->
+					<p v-if="resultLearned.length" class="result-learned">
+						You learned <strong>{{ formatList(resultLearned) }}</strong>
+					</p>
 
 					<!-- By Ear grades two different skills, so it reports them as two
 					     numbers: which notes came out, and where they landed. Blending
@@ -807,6 +831,13 @@ const isNewBestAccuracy = computed(() => {
 						</button>
 						<button class="secondary-btn" @click="appStore.goHome">Menu</button>
 					</div>
+				</div>
+
+				<MascotSlot
+					class="result-mascot"
+					size="10rem"
+					:variant="(appStore.lastResult?.stars ?? 0) >= 3 ? 'cheer' : 'retry'"
+				/>
 				</div>
 			</section>
 
@@ -1092,7 +1123,8 @@ const isNewBestAccuracy = computed(() => {
 		gap: 0.35rem;
 	}
 
-	.result-scene,
+	/* The backdrop costs nothing and keeps the screen from going flat, but the
+	   mascot needs room this size does not have. */
 	.result-mascot {
 		display: none;
 	}
@@ -2306,29 +2338,90 @@ const isNewBestAccuracy = computed(() => {
 	justify-content: space-between;
 }
 
+/* The art fills the screen and the card stands in front of it, so this screen
+   drops the shared max-width and does its own centring. */
+.screen.result-screen {
+	max-width: none;
+	position: relative;
+	display: grid;
+	place-items: center;
+	min-height: 100%;
+	padding: var(--space-2);
+}
+
+.result-backdrop {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	/* MoodScene is a 8:3 banner everywhere else; here it is the whole ground. */
+	aspect-ratio: auto;
+	border-radius: 0;
+}
+
+/* Enough navy over the art for white text to hold on any of the six covers,
+   darkest in the middle where the card sits. */
+.result-veil {
+	position: absolute;
+	inset: 0;
+	/* Only as much navy as the text needs: darkest right under the card, and
+	   barely there at the edges, so the cover still reads as a painting rather
+	   than as a dimmed backdrop. */
+	background: radial-gradient(
+		ellipse 46% 58% at 50% 52%,
+		rgba(8, 12, 34, 0.72),
+		rgba(8, 12, 34, 0.34) 62%,
+		rgba(8, 12, 34, 0.12)
+	);
+	pointer-events: none;
+}
+
+.result-stage {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-2);
+	width: 100%;
+}
+
 .result-card {
 	position: relative;
-	max-width: 50rem;
-	margin: 0 auto;
+	/* Narrower than it was: the art carries the celebration now, so the card only
+	   has to carry the numbers. */
+	max-width: 34rem;
 	padding: 0.85rem 1rem;
 	text-align: center;
 	display: grid;
 	gap: 0.5rem;
 	overflow: visible;
+	border: 1px solid color-mix(in srgb, var(--accent-1, var(--accent)) 34%, var(--border));
+	box-shadow: var(--shadow-float), var(--sheen);
 	background:
 		linear-gradient(160deg, color-mix(in srgb, var(--hero-accent) 8%, var(--panel-top)), var(--panel-bottom));
 }
 
-/* Celebration mascot at the top-right of the result card — `stage` pose (with the
-   trophy staff) when the player 3-starred, `wizard` otherwise. Absolute so it
-   never pushes the metric grid down; overlaps the card's own corner so it stays
-   on-screen even when the card sits near the top of a short landscape viewport. */
+/* Standing beside the card on the art, the way the reference has it, rather than
+   pinned to a corner of the panel. */
 .result-mascot {
-	position: absolute;
-	top: -2rem;
-	right: 0.35rem;
+	flex-shrink: 0;
 	z-index: 2;
 	pointer-events: none;
+}
+
+.result-learned {
+	margin: 0;
+	padding: 0.3rem 0.7rem;
+	border-radius: var(--radius-m);
+	background: var(--surface-1);
+	border: 1px solid var(--border-soft);
+	color: var(--text-2);
+	font-size: var(--text-sm);
+}
+
+.result-learned strong {
+	color: var(--good, #57e6a8);
 }
 
 @media (max-height: 560px) {
@@ -2349,17 +2442,22 @@ const isNewBestAccuracy = computed(() => {
 /* Badge + title side by side instead of stacked — on a short landscape phone
    (e.g. iPhone SE, 375px tall) the old vertical stack pushed Retry/Menu below
    the fold entirely. */
+/* Stars first and large: they are the reward, and reading them as a footnote
+   beside the title is what made the old card feel like a report. */
 .result-header {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	flex-wrap: wrap;
-	gap: 0.6rem;
+	display: grid;
+	justify-items: center;
+	gap: 0.25rem;
+}
+
+.result-stars :deep(.star) {
+	width: 1.75rem;
+	height: 1.75rem;
 }
 
 .result-header h2 {
 	margin: 0;
-	font-size: 1.05rem;
+	font-size: 1.35rem;
 	line-height: 1.2;
 }
 
