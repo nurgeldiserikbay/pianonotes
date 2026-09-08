@@ -1,4 +1,4 @@
-import { Application, BitmapText, Container, Graphics } from 'pixi.js'
+import { Application, BitmapText, Container, Graphics, Sprite, Texture } from 'pixi.js'
 
 import type {
 	ChartNote,
@@ -13,6 +13,7 @@ import {
 	RENDERER_LOST_EVENT,
 	STAFF_STEPS,
 	createNoteGlyph,
+	downgradeResolution,
 	drawNoteGlyph,
 	drawStaffLines,
 	drawTrebleClef,
@@ -46,13 +47,35 @@ const BONUS_LIFE_CAP = 5
 const HUD_INTERVAL_MS = 100
 // Particles are pooled sprites, not redrawn shapes: a fixed pool means a hit can
 // never allocate, and the per-frame work is a transform per live particle.
+// The disc is drawn once at this radius and every particle scales from it.
+// Frames are watched for this long before a verdict, and this is the median that
+// counts as "this device cannot carry it": 28ms is about 36fps, which is where
+// a moving cursor starts to look like it is stepping.
+//
+// Both windows are in milliseconds, not frames. Counting frames meant the slower
+// the device, the longer it took to notice — 210 frames is three seconds at 60fps
+// and twenty at 10 — so the phones that needed the verdict were the ones that
+// never reached it.
+const FRAME_WARMUP_MS = 1500
+const FRAME_WINDOW_MS = 2000
+const SLOW_FRAME_MS = 28
+
+// The disc is drawn once at this radius and every particle scales from it.
+const PARTICLE_TEXTURE_RADIUS = 8
+
 const PARTICLE_POOL = 64
 const PARTICLES_PER_HIT = 8
 const PARTICLE_LIFE_MS = 620
 // How long a played note takes to lift off the staff and fade out.
-// How faint a note goes once it has been played and settled: present enough to
-// read as "done", quiet enough that it never competes with what comes next.
-const PLAYED_ALPHA = 0.26
+// How faint a note goes once it has been played and settled.
+//
+// It was 0.26, which on a phone made the staff look half-rendered: with the
+// upcoming notes dimmed too, everything except the one note being asked for was
+// a ghost, and the pitch label under a ghost is unreadable. The hierarchy comes
+// from the ring and the pulse on the current note, not from making the rest of
+// the music disappear — so every note stays legible and the differences are
+// smaller than they were.
+const PLAYED_ALPHA = 0.5
 
 const NOTE_RESOLVE_MS = 200
 const NOTE_REJECT_MS = 260
@@ -72,9 +95,11 @@ interface NoteView {
 	// Finished animating: never touched again this round.
 	done?: boolean
 	// Played correctly and settled back onto the staff, where it stays as a quiet
-	// mark. It still gets laid out every frame — the line it belongs to can still
-	// scroll or re-flow underneath it — it is just drawn faint.
+	// mark.
 	played?: boolean
+	// The staff geometry this note was last placed against. While it matches, the
+	// note is where it belongs and the frame loop can skip it entirely.
+	laidOutVersion?: number
 }
 
 interface Particle {
@@ -85,7 +110,7 @@ interface Particle {
 	vy: number
 	life: number
 	active: boolean
-	sprite: Graphics
+	sprite: Sprite
 }
 
 export interface ReadingGameCallbacks {
@@ -103,7 +128,20 @@ export class ReadingGame {
 	private readonly notesLayer = new Container()
 	private readonly particlesLayer = new Container()
 	private readonly noteViews: NoteView[] = []
+	// Bumped whenever the staff geometry changes. A note that has been played does
+	// not move again until it does, so it can be laid out once and then skipped
+	// instead of being repositioned sixty times a second for the rest of the
+	// round — which is what made a long melody stutter on a phone as it filled up
+	// with finished notes.
+	private layoutVersion = 0
+	private lastFirstLine = -1
+	private readonly frameSamples: number[] = []
+	private frameWatchMs = 0
+	private frameCostSettled = false
+
 	private readonly particles: Particle[] = []
+	// One white disc, generated once and shared by every particle.
+	private particleTexture: Texture | null = null
 	private readonly callbacks: ReadingGameCallbacks
 	private readonly session: SessionConfig
 	private readonly theme: (typeof BACKGROUND_PRESETS)[keyof typeof BACKGROUND_PRESETS]
@@ -212,7 +250,7 @@ export class ReadingGame {
 		)
 
 		this.resize()
-		this.buildParticlePool()
+		this.buildParticlePool(app)
 		this.buildNoteViews()
 
 		// The clock does NOT start here. A level can now appear the moment the app
@@ -277,6 +315,7 @@ export class ReadingGame {
 	}
 
 	resize() {
+		this.layoutVersion += 1
 		this.width = this.host.clientWidth
 		this.height = this.host.clientHeight
 
@@ -352,6 +391,7 @@ export class ReadingGame {
 		// Clamped: a tab that was backgrounded reports a huge delta, which would
 		// teleport every particle off-screen in one step.
 		const deltaMs = Math.min(ticker?.deltaMS ?? 16.7, 64)
+		this.watchFrameCost(deltaMs)
 
 		const elapsedMs = this.getElapsedMs()
 
@@ -373,6 +413,31 @@ export class ReadingGame {
 		this.updateNotes(elapsedMs)
 		this.updateParticles(deltaMs)
 		this.emitHud(elapsedMs)
+	}
+
+	// Whether this device can afford the resolution it asked for.
+	//
+	// Sampled rather than guessed: a phone's model name says nothing useful, and
+	// the answer is different with a case on a hot day. One verdict per round, on
+	// the median of a window — an average would let a couple of long frames during
+	// the opening animation condemn a device that is actually fine.
+	private watchFrameCost(deltaMs: number) {
+		if (this.frameCostSettled) return
+
+		// Skip the first stretch: mounting, first draw and the melody preview are
+		// not what steady-state play looks like.
+		this.frameWatchMs += deltaMs
+		if (this.frameWatchMs <= FRAME_WARMUP_MS) return
+
+		this.frameSamples.push(deltaMs)
+		if (this.frameWatchMs <= FRAME_WARMUP_MS + FRAME_WINDOW_MS) return
+		if (this.frameSamples.length < 12) return
+
+		this.frameCostSettled = true
+		const sorted = [...this.frameSamples].sort((a, b) => a - b)
+		const median = sorted[Math.floor(sorted.length / 2)]
+		this.frameSamples.length = 0
+		if (median > SLOW_FRAME_MS) downgradeResolution(this.app)
 	}
 
 	private getElapsedMs() {
@@ -563,6 +628,7 @@ export class ReadingGame {
 	}
 
 	private rebuildNoteGeometry() {
+		this.layoutVersion += 1
 		this.noteViews.forEach((view) => this.drawNoteGeometry(view))
 	}
 
@@ -570,8 +636,18 @@ export class ReadingGame {
 		const firstLine = this.currentLine()
 		const currentSlot = this.currentSlot()
 
+		// Turning the page changes which lines are on screen, so every settled note
+		// has to be looked at once more. Without this they would keep the placement
+		// they had on the page they were played on.
+		if (firstLine !== this.lastFirstLine) {
+			this.lastFirstLine = firstLine
+			this.layoutVersion += 1
+		}
+
 		this.noteViews.forEach((view) => {
 			if (view.done) return
+			// Already placed, and nothing has moved since.
+			if (view.played && view.laidOutVersion === this.layoutVersion) return
 			const lineIndex = Math.floor(view.slotIndex / this.slotsPerLine)
 			const onScreen = lineIndex >= firstLine && lineIndex < firstLine + VISIBLE_LINES
 
@@ -605,11 +681,11 @@ export class ReadingGame {
 			if (view.played) {
 				view.container.alpha = PLAYED_ALPHA
 				view.glow.visible = false
+				view.laidOutVersion = this.layoutVersion
 				return
 			}
-			// What is still to come is quieter than it was, so that the note being
-			// asked for is unmistakably the loudest thing on the staff.
-			view.container.alpha = lineIndex === firstLine ? 0.58 : 0.28
+			// Still to come: solid on the line being read, softer on the next one.
+			view.container.alpha = lineIndex === firstLine ? 0.92 : 0.6
 		})
 	}
 
@@ -717,16 +793,26 @@ export class ReadingGame {
 		if (this.remainingLives <= 0) this.finish(false, false)
 	}
 
-	// A fixed pool of one-circle Graphics. Each is drawn once at construction and
-	// afterwards only transformed and tinted, so a burst of particles costs no
-	// geometry work — the previous version rebuilt a single Graphics holding up to
-	// eighty circles on every frame a particle was alive, which is exactly the
-	// frame a note disappears on.
-	private buildParticlePool() {
+	// A pool of sprites over one shared texture: a white disc, rendered once.
+	//
+	// The pool itself is not new — what was left was re-drawing each particle's
+	// Graphics at birth to colour it, which is eight tessellations and eight
+	// buffer uploads on the exact frame a note is played. On a phone that is the
+	// hitch you feel every time a note disappears. Sprites take their colour from
+	// `tint`, which is a uniform, and their size from `scale`, so a burst now
+	// costs nothing but transforms.
+	private buildParticlePool(app: Application) {
 		if (this.particles.length) return
 
+		if (!this.particleTexture) {
+			const disc = new Graphics().circle(0, 0, PARTICLE_TEXTURE_RADIUS).fill({ color: 0xffffff })
+			this.particleTexture = app.renderer.generateTexture(disc)
+			disc.destroy()
+		}
+
 		for (let index = 0; index < PARTICLE_POOL; index += 1) {
-			const sprite = new Graphics()
+			const sprite = new Sprite(this.particleTexture)
+			sprite.anchor.set(0.5)
 			sprite.visible = false
 			this.particlesLayer.addChild(sprite)
 			this.particles.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, active: false, sprite })
@@ -750,13 +836,12 @@ export class ReadingGame {
 			particle.life = 1
 			particle.active = true
 
-			// Drawn once per birth, in the lane's colour. Not `tint`: setting tint on
-			// a Graphics threw inside Pixi ("_onUpdate of null") and took every key
-			// press down with it. Eight rebuilds per hit is nothing; the thing that
-			// mattered was rebuilding on every frame, and that is gone.
+			// Colour and size without touching geometry. Tinting a Graphics used to
+			// throw inside Pixi ("_onUpdate of null"); a Sprite tints safely, which
+			// is the whole reason the pool is sprites now.
 			const radius = Math.random() * 3 + 1.6
-			particle.sprite.clear().circle(0, 0, radius).fill({ color })
-			particle.sprite.scale.set(1)
+			particle.sprite.tint = color
+			particle.sprite.scale.set(radius / PARTICLE_TEXTURE_RADIUS)
 			particle.sprite.visible = true
 			spawned += 1
 		}

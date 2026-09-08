@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 
 import type { GameplayResult, HudSnapshot, SessionConfig, SettingsState } from '@/core/models'
 import { BACKGROUND_PRESETS } from '@/modes/modeDefinitions'
@@ -33,7 +33,15 @@ const emit = defineEmits<{
 }>()
 
 const stageRef = ref<HTMLElement | null>(null)
-const engine = ref<ReadingGame | null>(null)
+// shallowRef, never ref: a plain ref makes the whole engine deeply reactive, and
+// that means every Pixi object inside it — every note container, every particle
+// — is handed back as a Proxy. Two things follow. Pixi's own internals then read
+// a proxied object where they expect the real one and throw ("_onUpdate of
+// null"), which is why tinting a sprite used to crash. And every position, alpha
+// and scale write during play goes through a proxy trap, sixty times a second
+// for every note on screen, which is most of why a phone stuttered. Nothing in
+// the template depends on the engine, so it does not need to be reactive at all.
+const engine = shallowRef<ReadingGame | null>(null)
 const activeKeys = ref<string[]>([])
 const hud = ref<HudSnapshot>(createEmptyHud(props.session.modeId, props.session.lives))
 const flash = ref({ label: '', color: '#ffffff', visible: false })
