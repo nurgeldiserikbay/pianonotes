@@ -69,8 +69,16 @@
 	--mode-endless-deep: #7038d6;
 	--mode-trainer: #57e6a8;
 	--mode-trainer-deep: #16a173;
+	// Gold stays gold: stars, the trophy and every milestone ring read from it.
 	--mode-records: #ffd24a;
 	--mode-records-deep: #c68f0c;
+	// My Tunes used to borrow the trophy gold, which is amber — the one colour the
+	// style brief reserves for the primary action, so the menu's third card
+	// competed with Play, and mixed into a navy panel it came out olive rather
+	// than gold. Pink is what the reference gives that card, and it is the one hue
+	// the palette was not already using.
+	--mode-studio: #ff6bd6;
+	--mode-studio-deep: #c02a99;
 	--mode-settings: #a3aeeb;
 	--mode-settings-deep: #6270b4;
 
@@ -166,7 +174,7 @@
 
 // Per-mode accent assignment. A screen adds `.mode-campaign` and every child
 // reads --accent-1 / --accent-2 from it, so a mode's identity is one class.
-@each $mode in campaign, time, endless, trainer, records, settings {
+@each $mode in campaign, time, endless, trainer, records, studio, settings {
 	.mode-#{$mode} {
 		--accent-1: var(--mode-#{$mode});
 		--accent-2: var(--mode-#{$mode}-deep);

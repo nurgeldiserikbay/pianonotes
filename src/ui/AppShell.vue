@@ -474,7 +474,7 @@ const isNewBestAccuracy = computed(() => {
 							<span class="mode-card-go" aria-hidden="true">›</span>
 						</button>
 
-						<button class="mode-card mode-records" @click="appStore.openTunes">
+						<button class="mode-card mode-studio" @click="appStore.openTunes">
 							<span class="mode-card-icon"><IconStudio /></span>
 							<span class="mode-card-text">
 								<strong>My Tunes</strong>
@@ -1894,10 +1894,21 @@ const isNewBestAccuracy = computed(() => {
 	text-align: left;
 	color: var(--text-1);
 	cursor: pointer;
-	border: 2px solid color-mix(in srgb, var(--accent-1) 40%, var(--border));
+	/* The card *is* its colour, rather than a dark panel with a coloured rim.
+	   At 11% tint the three modes were three near-identical navy blocks and the
+	   accent only existed in the border — which is what made the screen look
+	   drained next to the reference, where each card is plainly purple, cyan or
+	   amber. The text stays white on all three: the darker half of the gradient
+	   sits under it. */
+	border: 2px solid color-mix(in srgb, var(--accent-1) 62%, var(--border));
 	background:
-		linear-gradient(100deg, color-mix(in srgb, var(--accent-1) 11%, var(--panel-top)), var(--panel-bottom) 68%);
-	box-shadow: 0 4px 0 var(--accent-2), 0 0 1rem color-mix(in srgb, var(--accent-1) 10%, transparent);
+		linear-gradient(
+			104deg,
+			color-mix(in srgb, var(--accent-1) 46%, var(--panel-top)) 0%,
+			color-mix(in srgb, var(--accent-1) 24%, var(--panel-bottom)) 58%,
+			color-mix(in srgb, var(--accent-1) 12%, var(--panel-bottom)) 100%
+		);
+	box-shadow: 0 4px 0 var(--accent-2), 0 0 1.5rem color-mix(in srgb, var(--accent-1) 26%, transparent);
 	transition: transform var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease),
 		border-color var(--dur-1) var(--ease);
 }
@@ -1914,7 +1925,18 @@ const isNewBestAccuracy = computed(() => {
 /* The icon tile carries the mode's colour and its glow — the card body stays
    calm, so three cards in a column do not turn into three coloured slabs. */
 .mode-card-icon {
-	@include icon-well(var(--accent-1), 2.8rem, var(--radius-m));
+	@include icon-well(var(--accent-1), 2.8rem, var(--radius-round));
+	/* Bright enough to be an object in its own right: the icon sits in a lit
+	   disc, the way the reference draws it, instead of a tinted square that
+	   disappears into the card. */
+	background:
+		radial-gradient(circle at 50% 34%, rgba(255, 255, 255, 0.34), transparent 68%),
+		linear-gradient(180deg, color-mix(in srgb, var(--accent-1) 78%, transparent), color-mix(in srgb, var(--accent-1) 42%, transparent));
+	border-color: color-mix(in srgb, #ffffff 42%, var(--accent-1));
+	color: #ffffff;
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.5),
+		0 0 1.1rem color-mix(in srgb, var(--accent-1) 55%, transparent);
 }
 
 .mode-card-icon svg {
