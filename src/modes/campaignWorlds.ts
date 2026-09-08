@@ -20,14 +20,15 @@ export interface WorldDefinition {
 	difficulty: DifficultyId
 }
 
-// The six painted covers, in the order they were drawn.
+// The painted covers, in the order they were drawn.
 //
 // They were spread across the whole campaign at first, so that the art climbed
 // from a moonlit meadow to a lit concert hall as the player did. With thirty-two
-// chapters and six covers that gives each cover a run of five, and the first
-// thing anyone sees is five chapters wearing the same picture. Variety where the
-// player is beats a progression they would have to play for hours to notice, so
-// they cycle.
+// chapters that gave each cover a run of several, and the first thing anyone saw
+// was a stretch of chapters wearing the same picture. Variety where the player
+// is beats a progression they would have to play for hours to notice, so they
+// cycle — and with twelve rather than six, a chapter's art repeats half as
+// often.
 export const CHAPTER_COVERS = [
 	'01-first-tunes',
 	'02-nursery-favourites',
@@ -35,6 +36,12 @@ export const CHAPTER_COVERS = [
 	'04-rhythm-garden',
 	'05-starlight-stage',
 	'06-grand-finale',
+	'07-around-the-staff',
+	'08-wider-reach',
+	'09-old-standards',
+	'10-longer-phrases',
+	'11-folk-songs',
+	'12-across-the-sea',
 ] as const
 
 export type ChapterCoverId = (typeof CHAPTER_COVERS)[number]

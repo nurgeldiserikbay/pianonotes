@@ -11,7 +11,7 @@ import { computed, toRef } from 'vue'
 import { assetUrl } from '@/utils/assetUrl'
 import { useDropInArt } from '@/ui/useDropInArt'
 
-export type MascotMood = 'idle' | 'teaching' | 'thinking' | 'cheer' | 'retry'
+export type MascotMood = 'idle' | 'teaching' | 'thinking' | 'cheer' | 'retry' | 'wrongNote'
 
 const props = withDefaults(defineProps<{ size?: string; variant?: MascotMood }>(), {
 	size: '6rem',
@@ -27,12 +27,21 @@ const NEAREST: Record<MascotMood, MascotMood> = {
 	thinking: 'idle',
 	cheer: 'idle',
 	retry: 'idle',
+	wrongNote: 'retry',
+}
+
+// The drawn files, where a pose's name on disk differs from the name screens use
+// for it. `wrongNote` is the moment a key is wrong; `retry` is a finished
+// attempt that did not go well. Two different feelings, so two files.
+const FILE: Partial<Record<MascotMood, string>> = {
+	wrongNote: 'cat-wrong-note',
 }
 
 const variant = toRef(props, 'variant')
-const art = useDropInArt(computed(() => assetUrl(`/img/redesign-v2/mascot/cat-${variant.value}.webp`)))
+const fileFor = (mood: MascotMood) => FILE[mood] ?? `cat-${mood}`
+const art = useDropInArt(computed(() => assetUrl(`/img/redesign-v2/mascot/${fileFor(variant.value)}.webp`)))
 const src = computed(
-	() => art.src.value ?? assetUrl(`/img/redesign-v2/mascot/cat-${NEAREST[variant.value]}.webp`)
+	() => art.src.value ?? assetUrl(`/img/redesign-v2/mascot/${fileFor(NEAREST[variant.value])}.webp`)
 )
 </script>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Stars are drawn from the icon set rather than a bitmap render: they stay crisp
 // at any size, tint from tokens, and cost nothing to download.
-import IconStar from '@/assets/icons/star.svg'
+import IconStar from '@/assets/icons-v2/star.svg'
 
 withDefaults(defineProps<{ count: number; max?: number }>(), {
 	max: 3,
@@ -34,8 +34,12 @@ withDefaults(defineProps<{ count: number; max?: number }>(), {
 		filter var(--dur-2) var(--ease);
 }
 
+// The icon set is drawn as strokes, so an earned star has to be filled here.
+// Without this the whole row is outlines and there is nothing to tell earned
+// from unearned — which is the only thing the row exists to say.
 .star.filled {
 	color: var(--mode-records);
+	fill: var(--mode-records);
 	filter: drop-shadow(0 0 0.3rem color-mix(in srgb, var(--mode-records) 55%, transparent));
 	transform: scale(1.06);
 }

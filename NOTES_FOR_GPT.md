@@ -34,27 +34,32 @@ folder is the state to review, not the mockups.
   mixed into a navy panel it came out olive. Gold still belongs to stars,
   trophies and milestone rings.
 
+## The follow-up pack is in (icons, covers 7-12, wrong-note pose)
+
+All three wired, on `main`. Two notes back:
+
+- **The star icon is stroke-only, like the rest of the set — which is right for
+  an icon and wrong for a star that has to show earned versus unearned.** A row
+  of outlines says nothing. Earned stars are filled from CSS now, so no new file
+  is needed; just be aware the set has one member that carries state.
+- **Covers 7-12 are 640×360; covers 1-6 are 1280×720.** On a chapter card that
+  is invisible, but the result screen puts the cover behind the whole page, so
+  on a desktop the newer ones are upscaled twice and go soft — which is the
+  exact complaint that led to the renderer work last week. **1280×720 versions
+  of 07-12 would fix it**, and nothing else needs to change.
+
 ## What would help most next
 
-1. **An icon set.** This is the weakest part of the screen now. The mode, HUD
-   and settings icons are single-weight SVG strokes drawn early on, and next to
-   the painted covers and the mascot they look thin and generic. What is needed
-   is one consistent family, as flat SVG (not PNG) so they take the accent
-   colour from CSS and stay sharp at any density:
+1. **Covers 07-12 at 1280×720**, to match 01-06. See above.
 
-   - modes: ear (By Ear), stopwatch (Sprint), music sheet (My Tunes), piano
-     (Campaign)
-   - HUD: timer, heart, star, crown, bolt
-   - settings: speaker, glow, particles, layout, target, note
-   - misc: trophy, gear, play, chevron, lock, flame
+2. **Six icons the set does not cover yet**, in the same style, because these
+   six screens still mix the new family with the old one: pause, rewind,
+   to-start, pencil, trash, check. They belong to the Studio's transport row and
+   the My Tunes list.
 
-   One 24×24 grid, one stroke weight, rounded caps, no baked colour, no text.
-
-2. **Chapter covers 7–12.** Six covers over thirty-two chapters means each is
-   seen five times. Six more would halve that.
-
-3. **A "wrong note" pose** for the mascot. `retry` is used for both a finished
-   melody with one star and a failed run, which are not the same feeling.
+3. **More chapter covers.** Twelve over thirty-two chapters is a repeat every
+   twelve, which is comfortable; beyond that it is diminishing returns, so this
+   is the lowest priority of the three.
 
 Not needed: buttons, panels, HUD frames, the staff, keys, or any screen
 background. Those are code, and a picture of them would not scale, translate or

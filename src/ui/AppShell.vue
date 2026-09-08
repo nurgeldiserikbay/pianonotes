@@ -12,21 +12,21 @@ import { useDropInArt } from '@/ui/useDropInArt'
 import { MELODIES_BY_DIFFICULTY, getMelodyMood } from '@/modes/melodies'
 import { chapterCoverForLevelIndex, getNewNotesForLevelIndex } from '@/modes/campaignWorlds'
 
-import IconMusic from '@/assets/icons/music.svg'
-import IconSound from '@/assets/icons/sound.svg'
-import IconGlow from '@/assets/icons/glow.svg'
-import IconParticles from '@/assets/icons/particles.svg'
-import IconLayout from '@/assets/icons/layout.svg'
-import IconStar from '@/assets/icons/star.svg'
-import IconCampaign from '@/assets/icons/campaign.svg'
-import IconSprint from '@/assets/icons/trainer.svg'
-import IconStudio from '@/assets/icons/music.svg'
-import IconPlay from '@/assets/icons/play.svg'
-import IconEar from '@/assets/icons/ear.svg'
-import IconFlame from '@/assets/icons/flame.svg'
-import IconEcho from '@/assets/icons/endless.svg'
-import IconRecords from '@/assets/icons/records.svg'
-import IconSettings from '@/assets/icons/settings.svg'
+import IconMusic from '@/assets/icons-v2/note.svg'
+import IconSound from '@/assets/icons-v2/speaker.svg'
+import IconGlow from '@/assets/icons-v2/glow.svg'
+import IconParticles from '@/assets/icons-v2/particles.svg'
+import IconLayout from '@/assets/icons-v2/layout.svg'
+import IconStar from '@/assets/icons-v2/star.svg'
+import IconCampaign from '@/assets/icons-v2/piano.svg'
+import IconSprint from '@/assets/icons-v2/stopwatch.svg'
+import IconStudio from '@/assets/icons-v2/music-sheet.svg'
+import IconPlay from '@/assets/icons-v2/play.svg'
+import IconEar from '@/assets/icons-v2/ear.svg'
+import IconFlame from '@/assets/icons-v2/flame.svg'
+import IconEcho from '@/assets/icons-v2/ear.svg'
+import IconRecords from '@/assets/icons-v2/trophy.svg'
+import IconSettings from '@/assets/icons-v2/gear.svg'
 
 import MoodScene from '@/ui/components/MoodScene.vue'
 import StarRow from '@/ui/components/StarRow.vue'
@@ -1435,6 +1435,8 @@ const isNewBestAccuracy = computed(() => {
 	width: 1rem;
 	height: 1rem;
 	color: var(--mode-records);
+	/* A tally of stars earned reads as a solid star; the icon set draws strokes. */
+	fill: var(--mode-records);
 }
 
 /* ---- HUD right cluster ---- */
@@ -2315,6 +2317,7 @@ const isNewBestAccuracy = computed(() => {
 	width: 0.9rem;
 	height: 0.9rem;
 	color: var(--mode-records);
+	fill: var(--mode-records);
 }
 
 .world-bar {
