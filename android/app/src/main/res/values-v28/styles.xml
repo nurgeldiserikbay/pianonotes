@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	Let the game draw into the display cutout.
+
+	Android's default for a landscape app is to letterbox it away from the camera
+	cutout, which leaves an unpainted band down one side — the empty space on the
+	left of the built app. `shortEdges` lets the window cover the whole display;
+	the web layer keeps content out of the cutout itself through
+	`env(safe-area-inset-*)`, which only reports real values once the viewport
+	meta says `viewport-fit=cover`. The two changes only work together.
+
+	Kept in values-v28 because the attribute arrives in API 28 and the app still
+	supports 24.
+-->
+<resources>
+	<style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+		<item name="colorPrimary">@color/colorPrimary</item>
+		<item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+		<item name="colorAccent">@color/colorAccent</item>
+		<item name="windowNoTitle">true</item>
+		<item name="windowActionBar">false</item>
+		<item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+	</style>
+
+	<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+		<item name="windowActionBar">false</item>
+		<item name="windowNoTitle">true</item>
+		<item name="android:background">@null</item>
+		<item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+	</style>
+
+	<style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+		<item name="android:background">@drawable/splash</item>
+		<item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+	</style>
+</resources>
