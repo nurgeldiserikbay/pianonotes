@@ -6,9 +6,12 @@ import { SplashScreen } from '@capacitor/splash-screen'
 import { Fullscreen } from '@boengli/capacitor-fullscreen'
 
 import Admob from '@/utils/admob'
+
+import { useAdsStore } from '@/store/adsStore'
 import { useAppStore } from '@/ui/stores/appStore'
 import AppShell from '@/ui/AppShell.vue'
 
+const adsStore = useAdsStore()
 const appStore = useAppStore()
 
 // Both playing screens need the keyboard's full width. By Ear was left out when
@@ -32,6 +35,10 @@ async function syncOrientation(screenName: string) {
 
 onMounted(async () => {
 	// Safe on web: the service no-ops off native platforms.
+	// Подписку ставим до initialize(): первое событие баннера может прийти
+	// раньше, чем страница успеет смонтироваться, и потеряться.
+	Admob.onBannerChange((live, height) => adsStore.setBanner(live, height))
+
 	void Admob.initialize().catch(() => {})
 
 	if (Capacitor.getPlatform() === 'android') {

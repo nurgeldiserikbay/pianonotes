@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import OtherGames from '@/components/OtherGames.vue'
+
 import { BACKGROUND_PRESETS } from '@/modes/modeDefinitions'
 import { formatAccuracy } from '@/features/scoring'
 import { formatMs } from '@/features/reading'
@@ -328,6 +330,7 @@ const isNewBestAccuracy = computed(() => {
 	)
 })
 
+const isOtherGames = ref(false)
 </script>
 
 <template>
@@ -413,6 +416,17 @@ const isNewBestAccuracy = computed(() => {
 						</button>
 						<button class="hud-btn" aria-label="Settings" title="Settings" @click="appStore.openSettings">
 							<IconSettings />
+						</button>
+						<!-- Наши же игры. Уход в Play — только через родительский гейт
+						     внутри OtherGames: это детское приложение. -->
+						<button
+							class="hud-btn hud-btn-labeled"
+							aria-label="Other games"
+							title="Other games"
+							@click="isOtherGames = true"
+						>
+							<IconMusic />
+							<span class="hud-btn-label">Games</span>
 						</button>
 					</div>
 				</header>
@@ -953,6 +967,8 @@ const isNewBestAccuracy = computed(() => {
 				@exit="appStore.exitEcho"
 			/>
 		</main>
+
+		<OtherGames v-if="isOtherGames" @close="isOtherGames = false" />
 	</div>
 </template>
 
@@ -964,9 +980,8 @@ const isNewBestAccuracy = computed(() => {
 	height: 100dvh;
 	display: flex;
 	flex-direction: column;
-	padding: max(env(safe-area-inset-top), 1rem)
-		max(env(safe-area-inset-right), 1rem) max(env(safe-area-inset-bottom), 1rem)
-		max(env(safe-area-inset-left), 1rem);
+	padding: max(env(safe-area-inset-top), 1rem) max(env(safe-area-inset-right), 1rem)
+		max(env(safe-area-inset-bottom), 1rem) max(env(safe-area-inset-left), 1rem);
 	background: var(--bg-base);
 	color: var(--text-1);
 	overflow-x: hidden;
@@ -1146,10 +1161,29 @@ const isNewBestAccuracy = computed(() => {
 	flex-direction: column;
 }
 
+/* Breathing room under the last thing on a page.
+   It belongs here and nowhere higher up. .shell is the scroller and a scroll
+   container's own bottom padding is not part of its scrollable area; .content is
+   a flex child that stays the height of the leftover space while the screen
+   inside it overflows, so its padding sits above the overflow rather than below
+   it. Only the screen's own box reaches the bottom of the scroll. Measured
+   before this: every scrolling screen ended flush at 0px, and at 640×300 the
+   Records list and the result buttons sat 20-29px past the bottom edge with no
+   way to scroll to them.
+   The menu is excluded because it is built to fill the viewport exactly and has
+   its own spacing already. */
 .screen {
 	max-width: var(--screen-max);
 	margin: 0 auto;
 	width: 100%;
+}
+
+.screen:not(.menu-screen) {
+	padding-bottom: max(env(safe-area-inset-bottom), var(--space-3));
+	/* And it has to keep its own height: as a flex child it shrank to the space
+	   left over, its content spilled out below, and the padding stayed up inside
+	   the shrunken box where nobody could see it. */
+	flex-shrink: 0;
 }
 
 /* The menu is the one screen meant to exactly fill the remaining space (no dead
@@ -2143,7 +2177,7 @@ const isNewBestAccuracy = computed(() => {
 	align-items: center;
 	gap: 0.45rem;
 	width: 100%;
-	max-width: 48rem;
+	max-width: 34rem;
 	margin: 0 auto;
 	color: var(--text-2);
 	font-size: var(--text-sm);
@@ -2156,6 +2190,12 @@ const isNewBestAccuracy = computed(() => {
 	width: 0.95rem;
 	height: 0.95rem;
 	color: var(--accent);
+}
+
+@media (max-height: 560px) {
+	.settings-heading {
+		max-width: 48rem;
+	}
 }
 
 @media (max-height: 480px) {
@@ -2416,11 +2456,18 @@ const isNewBestAccuracy = computed(() => {
 	margin-top: -0.1rem;
 }
 
+/* The odd one out: every other setting is a row, so this is one too, until the
+   column is narrow enough to need stacking. */
 .toggle-card.naming-card {
-	flex-direction: column;
-	align-items: flex-start;
 	gap: 0.5rem;
 	cursor: default;
+}
+
+@media (max-height: 560px) {
+	.toggle-card.naming-card {
+		flex-direction: column;
+		align-items: flex-start;
+	}
 }
 
 .naming-card-head {
@@ -2637,16 +2684,32 @@ const isNewBestAccuracy = computed(() => {
 /* The calmest screen in the app (per the design brief): a narrow, centered
    column of identical rows rather than a wide 3-across grid of colored tiles
    with a screen of dead space under it. */
+/* One row per setting, in a single column.
+
+   Two columns looked accidental rather than designed: the three groups hold one,
+   three and two switches, so two of them ended with an orphan card and an empty
+   half-row beside it, and the taller "Note Names" card left a ragged step in the
+   middle of the page. A single column gives every setting the same shape and the
+   same height, which is what "the calmest screen in the app" was supposed to
+   mean. */
 .settings-grid {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	/* Rows size to their own content: with the default stretch, the two-line
-	   "Note Names" card forced its plain neighbour to the same height. */
-	align-items: start;
+	grid-template-columns: minmax(0, 1fr);
 	gap: var(--space-2);
 	width: 100%;
-	max-width: 48rem;
+	max-width: 34rem;
 	margin: 0 auto;
+}
+
+/* On a phone the width is there and the height is not, so the same rows go back
+   to two columns: an orphan costs half a row, and a short screen can afford that
+   far more easily than six full ones. */
+@media (max-height: 560px) {
+	.settings-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		align-items: start;
+		max-width: 48rem;
+	}
 }
 
 .toggle-card {
@@ -2661,9 +2724,12 @@ const isNewBestAccuracy = computed(() => {
 	max-width: none;
 	position: relative;
 	display: grid;
-	place-items: center;
+	/* `safe` matters: a card taller than the viewport, centred, overflows equally
+	   in both directions and the half above the top edge cannot be scrolled to.
+	   Safe centring falls back to the start edge in exactly that case. */
+	place-items: safe center;
 	min-height: 100%;
-	padding: var(--space-2);
+	padding: var(--space-2) var(--space-2) max(env(safe-area-inset-bottom), var(--space-3));
 }
 
 .result-backdrop {
@@ -2708,6 +2774,14 @@ const isNewBestAccuracy = computed(() => {
 	/* Narrower than it was: the art carries the celebration now, so the card only
 	   has to carry the numbers. */
 	max-width: 34rem;
+	/* And not a scroll container. It shares a rule with .glass-card that caps it at
+	   the viewport height and scrolls inside — which was meant to keep the buttons
+	   reachable and did the opposite: the page scrolled, the card scrolled, and
+	   Retry/Next/Menu sat 29px below the edge of a 640×300 screen inside a second
+	   scroller nobody would think to drag. The page is the only thing that scrolls
+	   here now. */
+	max-height: none;
+	overflow: visible;
 	padding: 0.85rem 1rem;
 	text-align: center;
 	display: grid;
@@ -2739,12 +2813,6 @@ const isNewBestAccuracy = computed(() => {
 
 .result-learned strong {
 	color: var(--good, #57e6a8);
-}
-
-@media (max-height: 560px) {
-	.result-card {
-		overflow-y: auto;
-	}
 }
 
 @media (max-height: 480px) {

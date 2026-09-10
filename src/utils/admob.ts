@@ -47,7 +47,86 @@ const AdMobInitializationOptions = {
 	maxAdContentRating: MaxAdContentRating.General,
 }
 
+// Резерв под баннер: примерно столько занимает adaptive-баннер на телефоне.
+// Пока настоящая высота неизвестна, рекламная зона стоит на этом значении и
+// никогда не бывает нулевой — иначе вёрстка прыгает при приходе объявления.
+const BANNER_RESERVE_HEIGHT = 56
+
 class Admob {
+	/** Куда сообщать о состоянии слота. Ставится из App.vue до initialize(). */
+	private bannerListener: ((live: boolean, height: number) => void) | null = null
+
+	/**
+	 * Стоит ли на экране настоящее объявление.
+	 *
+	 * Отдельный флаг нужен потому, что `SizeChanged` о наличии объявления не
+	 * говорит ничего: плагин рассылает его и на загрузке — с настоящим
+	 * размером, и на отказе, скрытии, снятии — с нулями. Если считать слот
+	 * живым по любому из них, после снятия баннера слот останется «живым» с
+	 * нулевой высотой: кросс-промо спрячется, а на его месте будет пустая
+	 * полоса.
+	 */
+	private bannerLoaded = false
+	/** Последняя известная высота объявления. */
+	private bannerHeightPx = 0
+
+	/** Подписка страницы на состояние слота. Ставится до initialize(). */
+	onBannerChange(listener: (live: boolean, height: number) => void) {
+		this.bannerListener = listener
+	}
+
+	private publishBanner(live: boolean, height = 0) {
+		this.bannerListener?.(live, height)
+	}
+
+	/**
+	 * Нативный баннер рисуется поверх вебвью, а не внутри вёрстки, поэтому
+	 * сама страница о нём ничего не знает. Через эту переменную она узнаёт
+	 * высоту объявления и держит под него место.
+	 *
+	 * Это же и есть защита от «реклама перекрывает управление»:
+	 * adaptive-баннер на планшете вырастает почти вдвое против телефонного, и
+	 * фиксированный отступ под него промахивается.
+	 *
+	 * `null` — вернуться к резерву из вёрстки. Место при этом не исчезает: в
+	 * нём просто снова появляется кросс-промо.
+	 */
+	private setSlotHeight(px: number | null) {
+		if (typeof document === 'undefined') return
+		const root = document.documentElement.style
+		if (px === null) root.removeProperty('--ad-slot')
+		else root.setProperty('--ad-slot', `${Math.max(44, Math.round(px))}px`)
+	}
+
+	/**
+	 * Добавляет к рекламной зоне системный инсет — туда же, куда система
+	 * отодвинула баннер.
+	 *
+	 * Ставится и снимается вместе с самим объявлением, а не один раз при
+	 * старте: когда баннера нет, отодвигать не подо что — в полосе стоит
+	 * кросс-промо, и лишний инсет оставит под ним пустую кромку.
+	 *
+	 * Само число здесь не считается и не может: его знает браузер и отдаёт
+	 * через `env(safe-area-inset-bottom)`. Переменной присваивается выражение,
+	 * а не результат: инсет меняется вместе с системными панелями, и вычислять
+	 * его должен CSS. Требует `viewport-fit=cover` в `index.html`.
+	 */
+	private setBannerInset(on: boolean) {
+		if (typeof document === 'undefined') return
+		const root = document.documentElement.style
+		if (on) root.setProperty('--ad-inset', 'env(safe-area-inset-bottom, 0px)')
+		else root.removeProperty('--ad-inset')
+	}
+
+	/** Слот пуст: место остаётся, но в нём снова кросс-промо. */
+	private clearBanner() {
+		this.bannerLoaded = false
+		this.bannerHeightPx = 0
+		this.setSlotHeight(null)
+		this.setBannerInset(false)
+		this.publishBanner(false)
+	}
+
 	// initialize() is what applies the child-directed request configuration, so
 	// no ad may be requested before it has finished — an early request is served
 	// from adult-rated inventory. `initPromise` caches the run so the ad entry
@@ -88,8 +167,34 @@ class Admob {
 		if (this.bannerListenersReady) return
 		this.bannerListenersReady = true
 
-		AdMob.addListener(BannerAdPluginEvents.SizeChanged, (_size: AdMobBannerSize) => {
-			// Subscribe change banner size.
+		AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
+			this.bannerLoaded = true
+			this.setBannerInset(true)
+			this.publishBanner(true, this.bannerHeightPx || BANNER_RESERVE_HEIGHT)
+		})
+
+		// Нет заполнения, нет сети, нет объявления: место остаётся за слотом, но
+		// рисует в нём снова кросс-промо. Обнулять резерв нельзя — вёрстка
+		// прыгнет ровно так же, как прыгала при появлении баннера.
+		AdMob.addListener(BannerAdPluginEvents.FailedToLoad, () => {
+			this.clearBanner()
+		})
+
+		AdMob.addListener(BannerAdPluginEvents.SizeChanged, (size: AdMobBannerSize) => {
+			// Нули означают, что баннера на экране нет: отказ, скрытие или
+			// снятие. Не «объявление нулевой высоты», а его отсутствие.
+			if (!size.height) {
+				this.clearBanner()
+				return
+			}
+
+			// Настоящая высота заменяет резерв, как только стала известна. О самом
+			// наличии объявления это событие не говорит, поэтому состояние слота
+			// остаётся тем, какое было.
+			this.bannerHeightPx = size.height
+			this.setSlotHeight(size.height)
+			this.setBannerInset(true)
+			this.publishBanner(this.bannerLoaded, size.height)
 		})
 	}
 
@@ -126,11 +231,15 @@ class Admob {
 	async hideBanner() {
 		if (!this.isNative) return
 		await AdMob.hideBanner()
+		// Объявление ушло с экрана — слот снова наш.
+		this.clearBanner()
 	}
 
 	async removeBanner() {
 		if (!this.isNative) return
 		await AdMob.removeBanner()
+		// Объявление ушло с экрана — слот снова наш.
+		this.clearBanner()
 	}
 
 	// Register interstitial listeners exactly once to avoid leaking a new listener
