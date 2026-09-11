@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 
 import OtherGames from '@/components/OtherGames.vue'
+import OtherGamesIcon from '@/components/OtherGamesIcon.vue'
 
 import { BACKGROUND_PRESETS } from '@/modes/modeDefinitions'
 import { formatAccuracy } from '@/features/scoring'
@@ -420,13 +421,12 @@ const isOtherGames = ref(false)
 						<!-- Наши же игры. Уход в Play — только через родительский гейт
 						     внутри OtherGames: это детское приложение. -->
 						<button
-							class="hud-btn hud-btn-labeled"
+							class="hud-btn"
 							aria-label="Other games"
 							title="Other games"
 							@click="isOtherGames = true"
 						>
-							<IconMusic />
-							<span class="hud-btn-label">Games</span>
+							<OtherGamesIcon class="hud-games-icon" />
 						</button>
 					</div>
 				</header>
@@ -3001,5 +3001,13 @@ const isOtherGames = ref(false)
 	.brand {
 		width: 100%;
 	}
+}
+
+/* Значок «Другие игры» в HUD: размер как у соседних иконок, но приглушён —
+   раздел служебный и не должен читаться как ещё один режим игры. */
+.hud-games-icon {
+	width: 20px;
+	height: 20px;
+	opacity: 0.75;
 }
 </style>
