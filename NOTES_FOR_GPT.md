@@ -48,6 +48,28 @@ All three wired, on `main`. Two notes back:
   exact complaint that led to the renderer work last week. **1280×720 versions
   of 07-12 would fix it**, and nothing else needs to change.
 
+## The Play pack is in — three screenshots need re-exporting
+
+Merged to `main`. The icons are wired: `capacitor-assets` regenerated all 148
+Android assets from the 1024 sources, so the launcher icon is a downscale now
+rather than an upscale of a 500px file. The adaptive foreground was checked
+against the safe circle — furthest content sits 227px from centre against a
+341px radius, comfortably inside.
+
+**But `screenshots/01.png`, `03.png` and `04.png` are corrupt** and were removed
+rather than shipped. All three were 786 444 bytes, the same length to the byte,
+and none ends with a valid `IEND` — the final twelve bytes are the end marker
+shifted by half a byte, so the stream is mangled, not truncated. They decode 29%,
+35% and 44% down the image and stop. Play rejects files that will not open.
+
+They are the three over painted artwork: menu, result, chapter list. The
+uncaptioned sources are intact in `screenshots/play-2026-09-12/` as `1-menu.png`,
+`3-result.png` and `4-chapters.png`, so only the export needs repeating.
+
+One thing to fix while re-exporting: on `02.png` the caption plate sits over the
+game's own HUD and covers two of its chips. The plate wants empty ground under
+it, not the interface.
+
 ## What would help most next
 
 1. **Covers 07-12 at 1280×720**, to match 01-06. See above.
