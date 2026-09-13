@@ -16,20 +16,17 @@ The Android build inputs are in `resources/`:
 
 The screenshots preserve the current game UI at its original 1920×1080 size. Only the requested top captions were added. Raw generation files and review contact sheets are intentionally excluded.
 
-## Missing: 01, 03 and 04
+## 01, 03 and 04 were rebuilt here
 
-Three of the eight arrived as corrupt PNGs and were removed rather than
-shipped. All three were 786 444 bytes — the same length to the byte — and none
-carried a valid `IEND`; the last twelve bytes are the end marker shifted by half
-a byte, so the stream is mangled rather than merely cut short. They decode 29%,
-35% and 44% of the way down and then stop. Google Play rejects files that will
-not open.
+Those three arrived as corrupt PNGs: all 786 444 bytes, the same length to the
+byte, each failing a CRC check inside an IDAT chunk — verified against the git
+objects, so the damage was in the committed bytes, not in any checkout. They
+decoded 29%, 35% and 44% of the way down and stopped, and Play rejects files
+that will not open.
 
-The three are the ones over painted artwork: the menu, the result screen and the
-chapter list. The uncaptioned originals they were made from are intact in
-[`screenshots/play-2026-09-12/`](../screenshots/play-2026-09-12/) — `1-menu.png`,
-`3-result.png` and `4-chapters.png` — so only the export needs repeating, not the
-work.
-
-Until they are back, the listing can go up with the five that survived: Play
-asks for at least two.
+They were repairable without redrawing anything. The caption layer is the top
+170 rows, which sits inside the part that still decoded correctly, and every row
+below it was byte-identical to the uncaptioned source in
+[`screenshots/play-2026-09-12/`](../screenshots/play-2026-09-12/). So the caption
+band was lifted onto the clean frame. All eight files now pass a full chunk-chain
+check and decode end to end.
