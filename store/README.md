@@ -4,7 +4,8 @@ Final production files prepared from `PLAY_STORE_BRIEF.md`.
 
 | Path | Size | Purpose |
 | --- | --- | --- |
-| `icon-512.png` | 512×512 RGBA | Play Console store icon |
+| `icon-512.png` | 512×512 RGBA | Play Console store icon — square, because Play applies its own rounded mask |
+| `logo.png` | 512×512 RGBA | the same artwork with a 23% corner radius, for anywhere that does not round for you |
 | `feature-graphic.png` | 1024×500 RGB | Play Console feature graphic |
 | `screenshots/01.png` … `08.png` | 1920×1080 RGB | Landscape store screenshots in recommended order |
 
@@ -30,3 +31,13 @@ below it was byte-identical to the uncaptioned source in
 [`screenshots/play-2026-09-12/`](../screenshots/play-2026-09-12/). So the caption
 band was lifted onto the clean frame. All eight files now pass a full chunk-chain
 check and decode end to end.
+
+## Icon artwork
+
+Both 512s are cut from `raw-assets/icon-v3/source-1254.png` — an open book of
+sheet music between piano keys with a gold note above it.
+
+`icon-512.png` is square on purpose. Play rounds the store icon itself, and
+handing it corners that are already cut lets its mask bite into artwork drawn to
+the edge. `logo.png` carries the rounding for everywhere that does not round for
+you.
