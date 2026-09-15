@@ -41,3 +41,22 @@ sheet music between piano keys with a gold note above it.
 handing it corners that are already cut lets its mask bite into artwork drawn to
 the edge. `logo.png` carries the rounding for everywhere that does not round for
 you.
+
+## Tablet screenshots
+
+Play keeps separate slots for phone, 7-inch and 10-inch tablets, and an app with
+nothing in the tablet slots is held back from large-screen placement. All three
+sets are raw frames — captions are only on the phone set so far:
+
+| Folder | Size | Slot |
+| --- | --- | --- |
+| `screenshots/play-2026-09-12/` | 1920×1080 | phone (captioned copies live in `screenshots/`) |
+| `screenshots/play-tablet7-2026-09-15/` | 1920×1200 | 7-inch tablet |
+| `screenshots/play-tablet10-2026-09-15/` | 2560×1600 | 10-inch tablet |
+
+They could not be taken before: the staff had a fixed ceiling on its line
+spacing, so on a tablet it sat in the top half of the sheet with blank paper
+below — the ink reached 45% of the way down a 10-inch panel. With the ceiling
+raised it reaches 89%. A 2560×1600 panel still has slack, at 48%; filling that
+would need three staff systems rather than two, which is a bigger change than a
+screenshot session warrants.

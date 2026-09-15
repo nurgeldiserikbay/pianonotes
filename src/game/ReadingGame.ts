@@ -321,7 +321,14 @@ export class ReadingGame {
 
 		// Both visible lines have to fit, so the staff spacing follows from the
 		// height rather than being chosen and then hoping it fits.
-		this.lineGap = Math.max(11, Math.min(26, this.height / (LINE_SPAN_GAPS * VISIBLE_LINES)))
+		// The ceiling used to be 26, which is right for a phone and wrong for
+		// anything larger: a 1600×1000 tablet wants about 36 and a 10-inch panel was
+		// left with the staff in its top half and blank paper below. Raising it lets
+		// the music fill the sheet it is given. It costs notes per line — a beat is
+		// about three gaps wide, so a bigger gap fits fewer — which is why this is 38
+		// rather than uncapped: at 38 a 1600-wide tablet still holds thirteen beats
+		// to a line, and past that the page would start turning too often to read.
+		this.lineGap = Math.max(11, Math.min(38, this.height / (LINE_SPAN_GAPS * VISIBLE_LINES)))
 		this.lineHeight = this.lineGap * LINE_SPAN_GAPS
 
 		this.staffLeftX = Math.max(56, this.width * 0.07)
