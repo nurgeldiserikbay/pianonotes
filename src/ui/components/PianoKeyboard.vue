@@ -121,16 +121,21 @@ function release(laneId: string) {
 	justify-content: center;
 	padding-bottom: 1rem;
 	border-radius: 0 0 1.15rem 1.15rem;
-	/* A real white key: white, barely shaded, with the lane colour kept to the
-	   bottom strip. Tinting the whole key made fourteen pastel keys compete with
-	   the notes on the staff. */
+	/* A real white key, white at the top and deeply its own colour at the foot.
+	   The tint used to stop at the bottom strip, on the reasoning that fourteen
+	   coloured keys would compete with the notes on the staff. That was true
+	   while the notes were pastel; they are saturated now, so the keyboard can
+	   carry its share of the colour instead of reading as a bank of white
+	   rectangles — measured against the reference, the keys sat at 0.49
+	   saturation where it had 0.78. */
 	background:
 		linear-gradient(
 			180deg,
 			#ffffff 0%,
-			#f7f8fd 46%,
-			color-mix(in srgb, var(--key-accent) 22%, #ffffff) 72%,
-			color-mix(in srgb, var(--key-accent) 62%, #ffffff) 100%
+			#f8f9fe 34%,
+			color-mix(in srgb, var(--key-accent) 18%, #ffffff) 58%,
+			color-mix(in srgb, var(--key-accent) 52%, #ffffff) 80%,
+			color-mix(in srgb, var(--key-accent) 92%, #ffffff) 100%
 		);
 	box-shadow:
 		inset 0 -0.15rem 0 color-mix(in srgb, var(--key-accent) 45%, #ffffff),

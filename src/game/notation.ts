@@ -123,6 +123,46 @@ export function laneColor(laneId: string) {
 	return Number(`0x${color.replace('#', '')}`)
 }
 
+// Deepen a colour without moving its hue.
+//
+// The lane colours are key-cap tints — #ff9f68 and friends, around 0.59
+// saturation. That is right for a key, which is a big surface, and wrong for a
+// note head, which is a small mark on a white sheet: measured against the
+// reference mockup, the staff came out with 0.8% coloured pixels against its
+// 22%, and the deepest note on ours read (245,152,99) where the reference had
+// (215,0,87). Same hue, a third of the colour. The head borrows the key's hue
+// and takes the saturation it needs to be seen.
+export function deepen(color: number, satBoost: number, valueScale = 1) {
+	const r = ((color >> 16) & 0xff) / 255
+	const g = ((color >> 8) & 0xff) / 255
+	const b = (color & 0xff) / 255
+	const max = Math.max(r, g, b)
+	const min = Math.min(r, g, b)
+	const delta = max - min
+	if (delta === 0) return shade(color, valueScale)
+
+	let hue: number
+	if (max === r) hue = ((g - b) / delta) % 6
+	else if (max === g) hue = (b - r) / delta + 2
+	else hue = (r - g) / delta + 4
+	hue *= 60
+	if (hue < 0) hue += 360
+
+	const sat = Math.min(1, (delta / max) * satBoost)
+	const val = Math.min(1, max * valueScale)
+	const c = val * sat
+	const x = c * (1 - Math.abs(((hue / 60) % 2) - 1))
+	const m = val - c
+	const [rr, gg, bb] =
+		hue < 60 ? [c, x, 0] :
+		hue < 120 ? [x, c, 0] :
+		hue < 180 ? [0, c, x] :
+		hue < 240 ? [0, x, c] :
+		hue < 300 ? [x, 0, c] : [c, 0, x]
+	const to = (v: number) => Math.round((v + m) * 255)
+	return (to(rr) << 16) | (to(gg) << 8) | to(bb)
+}
+
 export function shade(color: number, factor: number) {
 	const r = Math.min(255, Math.round(((color >> 16) & 0xff) * factor))
 	const g = Math.min(255, Math.round(((color >> 8) & 0xff) * factor))
@@ -288,9 +328,11 @@ export function drawNoteGlyph(glyph: NoteGlyph, options: NoteGlyphOptions) {
 	// Darker than the dark theme's heads: a pastel notehead that glowed against
 	// black disappears against paper. Rim, body and core all step down, and the
 	// white specular below stays to keep the 3D read.
-	const rim = shade(color, 0.45)
-	const body = shade(color, 0.82)
-	const core = shade(color, 1.0)
+	// Saturated, not merely darkened: shade() scales brightness and leaves a
+	// pastel pastel, which is how the staff ended up almost colourless.
+	const rim = deepen(color, 1.9, 0.5)
+	const body = deepen(color, 1.75, 0.88)
+	const core = deepen(color, 1.35, 1.0)
 	head.clear()
 	head.ellipse(0, 0, 14 * s, 10.5 * s).fill({ color: rim, alpha: 1 })
 	head.ellipse(0, 0, 12 * s, 8.8 * s).fill({ color: body, alpha: 1 })

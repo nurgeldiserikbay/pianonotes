@@ -691,8 +691,11 @@ export class ReadingGame {
 				view.laidOutVersion = this.layoutVersion
 				return
 			}
-			// Still to come: solid on the line being read, softer on the next one.
-			view.container.alpha = lineIndex === firstLine ? 0.92 : 0.6
+			// Still to come: full colour on the line being read, softer on the next.
+			// Dimming with alpha over white paper does not just quieten a note, it
+			// drains it — half-opacity pink becomes pale salmon — so the line being
+			// read keeps all of its colour and only the next one gives any up.
+			view.container.alpha = lineIndex === firstLine ? 1 : 0.72
 		})
 	}
 
