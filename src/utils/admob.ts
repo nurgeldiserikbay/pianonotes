@@ -20,17 +20,13 @@ import { Fullscreen } from '@boengli/capacitor-fullscreen'
 // banner for a Google test id.
 const BANNER_AD_ID = 'ca-app-pub-9702825788968948/6128253678'
 const INTERSTITIAL_AD_ID = 'ca-app-pub-9702825788968948/4804268957'
-// TODO(owner): rewarded юнита у PianoNotes ещё нет — стоит публичный тестовый ID
-// Google. Завести rewarded в консоли AdMob (App ID ca-app-pub-9702825788968948~4130816693)
-// и подставить сюда: без этого «продолжить за просмотр» показывает тестовый ролик
-// и не приносит дохода.
 // Only the ad *load* is bounded. If the ad has not arrived within this window the
 // show is abandoned altogether: by then the player has usually left the result
 // screen and started the next session, and a late full screen ad would land at
 // the start of a round — the "unexpected full screen interstitial" Google rejects.
 const INTERSTITIAL_LOAD_TIMEOUT_MS = 5000
 
-const REWARDED_AD_ID = 'ca-app-pub-3940256099942544/5224354917'
+const REWARDED_AD_ID = 'ca-app-pub-9702825788968948/3642528774'
 
 // The Play Console target audience of this game includes children, so Families
 // policy applies: every ad request must be tagged as child-directed, capped at
